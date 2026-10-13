@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import level_bar %}
+{% from "macros.html" import level_bar, seen_ring, seen_share %}
 {% block content %}
 <div class="page-head">
   <h1>Il tuo ripasso</h1>
@@ -47,8 +47,14 @@
   {{ level_bar(level_totals, "level-bar") }}
   <ul class="level-legend">
     {% for level in LEVELS %}
-    <li><span class="level-dot level-{{ level }}"></span>{{ LEVEL_LABELS[level] }} <strong>{{ level_totals[level] | it_number }}</strong></li>
+    <li><span class="level-dot level-{{ level }}"></span>{{ LEVEL_LABELS[level] }} <strong>{{ level_totals[level] | it_number }}</strong>
+      {{ seen_share(seen_totals[level], level_totals[level], LEVEL_LABELS[level]) }}</li>
     {% endfor %}
+    {% set seen = seen_totals.values() | sum %}
+    {% set total = level_totals.values() | sum %}
+    <li class="seen-total" title="Tutte: {{ seen }} di {{ total }} viste">
+      {{ seen_ring(seen, total) }}<strong>{{ (100 * seen / total if total else 0) | it_percent }}%</strong> viste in totale
+    </li>
   </ul>
 </section>
 {% endblock %}

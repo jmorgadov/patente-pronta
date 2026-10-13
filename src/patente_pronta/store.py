@@ -170,11 +170,11 @@ def completed_attempts(session: Session) -> list[Attempt]:
 
 
 def level_totals(session: Session) -> dict[Level, int]:
-    rows = session.exec(select(Question.level, func.count()).group_by(col(Question.level))).all()
-    totals = dict.fromkeys(Level, 0)
-    for level, count in rows:
-        totals[Level(level)] = count
-    return totals
+    return _counts_by_level(session, [])
+
+
+def seen_totals(session: Session) -> dict[Level, int]:
+    return _counts_by_level(session, [col(Question.seen).is_(True)])
 
 
 def _pool(levels: Sequence[Level], unseen_only: bool) -> list[ColumnElement[bool]]:
@@ -182,6 +182,18 @@ def _pool(levels: Sequence[Level], unseen_only: bool) -> list[ColumnElement[bool
     if unseen_only:
         conditions.append(col(Question.seen).is_(False))
     return conditions
+
+
+def _counts_by_level(
+    session: Session, conditions: Sequence[ColumnElement[bool]]
+) -> dict[Level, int]:
+    rows = session.exec(
+        select(Question.level, func.count()).where(*conditions).group_by(col(Question.level))
+    ).all()
+    totals = dict.fromkeys(Level, 0)
+    for level, count in rows:
+        totals[Level(level)] = count
+    return totals
 
 
 def _open_answer(attempt: Attempt, position: int, now: datetime) -> AttemptAnswer:

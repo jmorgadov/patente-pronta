@@ -56,3 +56,14 @@
   </div>
 </fieldset>
 {%- endmacro %}
+
+{% macro seen_ring(done, total) -%}
+<svg class="seen-ring" viewBox="0 0 36 36" aria-hidden="true">
+  <circle class="seen-ring-track" cx="18" cy="18" r="15.9155"></circle>
+  <circle class="seen-ring-fill" cx="18" cy="18" r="15.9155" pathLength="100" stroke-dasharray="{{ (100 * done / total if total else 0) | round(2) }} 100"></circle>
+</svg>
+{%- endmacro %}
+
+{% macro seen_share(done, total, label) -%}
+<small class="seen-share" title="{{ label }}: {{ done }} di {{ total }} viste">{{ (100 * done / total if total else 0) | it_percent }}% viste</small>
+{%- endmacro %}

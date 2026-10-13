@@ -37,6 +37,7 @@ templates.env.globals.update(
 )
 
 templates.env.filters["it_number"] = lambda value: f"{value:,}".replace(",", ".")
+templates.env.filters["it_percent"] = lambda value: f"{value:.1f}".replace(".", ",")
 
 router = APIRouter()
 
@@ -70,6 +71,7 @@ def home(request: Request, session: SessionDep) -> HTMLResponse:
         "home.html",
         {
             "level_totals": store.level_totals(session),
+            "seen_totals": store.seen_totals(session),
             "last_exam": exams[-1] if exams else None,
             "exams_taken": len(exams),
             "exams_passed": sum(is_passed(exam.correct or 0) for exam in exams),

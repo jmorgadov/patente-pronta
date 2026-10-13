@@ -440,6 +440,23 @@ def test_unseen_only_exam_needs_enough_unseen_topics(client: TestClient, app: Fa
     assert 'name="unseen_only" value="true" checked' in response.text
 
 
+def test_home_shows_seen_questions_by_current_level(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_practice(client, ["easy"], [1], 1)
+    question_id = _attempt(app, attempt_id, Mode.PRACTICE).answers[0].question_id
+    _answer(client, f"/esercitazione/{attempt_id}/risposte", 1, True)
+
+    before = client.get("/").text
+    client.post(f"/api/questions/{question_id}/level", json={"level": "hard"})
+    after = client.get("/").text
+
+    assert 'title="Tutte: 1 di 160 viste"' in before
+    assert "0,6%" in before
+    assert 'title="Facile: 1 di 70 viste"' in before
+    assert 'title="Difficile: 0 di 10 viste"' in before
+    assert 'title="Facile: 0 di 69 viste"' in after
+    assert 'title="Difficile: 1 di 11 viste"' in after
+
+
 def test_home_shows_exam_stats(client: TestClient, app: FastAPI) -> None:
     assert "Nessuno ancora" in client.get("/").text
     attempt_id = _start_exam(client, ALL_LEVELS)
