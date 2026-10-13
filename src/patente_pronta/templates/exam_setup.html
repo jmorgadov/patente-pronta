@@ -18,7 +18,10 @@
     <legend>Livelli</legend>
     {{ level_toggles(selected_levels, level_totals) }}
   </fieldset>
-  {{ unseen_toggle(unseen_only) }}
+  <fieldset>
+    <legend>Domande</legend>
+    <div class="toggle-row">{{ unseen_toggle(unseen_only) }}</div>
+  </fieldset>
   </section>
   <div class="setup-actions">
     <button type="submit" class="btn btn-primary">Inizia l'esame</button>

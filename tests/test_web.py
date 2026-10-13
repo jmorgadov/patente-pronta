@@ -136,6 +136,16 @@ def test_practice_setup_shows_answers_right_away_by_default(client: TestClient) 
     assert 'name="instant_feedback" value="true" checked' in page
 
 
+def test_practice_setup_collapses_chapters_when_all_are_chosen(client: TestClient) -> None:
+    every = client.get("/esercitazione").text
+    some = client.post("/esercitazione", data={"chapter": ["1", "2"], "count": "10"}).text
+
+    assert '<details class="chapter-picker" >' in every
+    assert "4/4" in every
+    assert '<details class="chapter-picker" open>' in some
+    assert "2/4" in some
+
+
 def test_blind_practice_page_hides_answers(client: TestClient, app: FastAPI) -> None:
     attempt_id = _start_blind_practice(client, [1, 2], 5)
 
