@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel
+from pydantic import Field as PydanticField
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -95,6 +96,19 @@ class AttemptAnswer(SQLModel, table=True):
     @property
     def is_correct(self) -> bool:
         return not self.revealed and self.given == self.question.answer
+
+
+class ExamSettings(BaseModel):
+    levels: list[Level]
+    unseen_only: bool
+
+
+class PracticeSettings(BaseModel):
+    levels: list[Level]
+    chapters: list[int] | None
+    count: int = PydanticField(ge=1, le=1000)
+    unseen_only: bool
+    instant_feedback: bool
 
 
 class RevealIn(BaseModel):

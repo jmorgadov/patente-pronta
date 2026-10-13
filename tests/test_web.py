@@ -146,6 +146,51 @@ def test_practice_setup_collapses_chapters_when_all_are_chosen(client: TestClien
     assert "2/4" in some
 
 
+def test_practice_setup_remembers_the_last_started_settings(client: TestClient) -> None:
+    _start_practice_with(client, _practice_form(["easy"], [1], 7) | {"unseen_only": "true"})
+
+    page = client.get("/esercitazione").text
+
+    assert 'name="level" value="easy" checked' in page
+    assert 'name="level" value="hard" >' in page
+    assert 'value="7"' in page
+    assert '<details class="chapter-picker" open>' in page
+    assert "1/4" in page
+    assert 'name="unseen_only" value="true" checked' in page
+    assert 'name="instant_feedback" value="true" >' in page
+
+
+def test_practice_setup_ignores_settings_that_failed_to_start(client: TestClient) -> None:
+    client.post("/esercitazione", data={"chapter": ["1"], "count": "7"})
+
+    page = client.get("/esercitazione").text
+
+    assert 'value="30"' in page
+    assert "4/4" in page
+
+
+def test_practice_setup_ignores_a_broken_cookie(client: TestClient) -> None:
+    client.cookies.set("practice_settings", "not json")
+
+    page = client.get("/esercitazione").text
+
+    assert 'value="30"' in page
+    assert 'name="instant_feedback" value="true" checked' in page
+
+
+def test_exam_setup_remembers_the_last_started_settings(client: TestClient) -> None:
+    response = client.post(
+        "/esame", data={"level": ["medium"], "unseen_only": "true"}, follow_redirects=False
+    )
+    assert response.status_code == 303
+
+    page = client.get("/esame").text
+
+    assert 'name="level" value="medium" checked' in page
+    assert 'name="level" value="easy" >' in page
+    assert 'name="unseen_only" value="true" checked' in page
+
+
 def test_blind_practice_page_hides_answers(client: TestClient, app: FastAPI) -> None:
     attempt_id = _start_blind_practice(client, [1, 2], 5)
 
