@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Storico &middot; Patente Pronta{% endblock %}
+{% block scripts %}<script src="/static/chart.js" defer></script>{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Storico</h1>
+</div>
+
+{% if points %}
+<section class="panel">
+  <div class="panel-head">
+    <h2>Risposte corrette</h2>
+    <ul class="chart-legend">
+      <li><span class="line-key key-exam"></span>Esame</li>
+      <li><span class="line-key key-practice"></span>Esercitazione</li>
+      <li><span class="line-key key-threshold"></span>Soglia esame ({{ EXAM_PASS_MARK }}/{{ EXAM_SIZE }})</li>
+    </ul>
+  </div>
+  <div class="chart" data-chart tabindex="0" role="img"
+    aria-label="Andamento della percentuale di risposte corrette; i valori sono nella tabella qui sotto"
+    data-threshold="{{ (100 * EXAM_PASS_MARK / EXAM_SIZE) | round(1) }}">
+    <script type="application/json" data-chart-points>{{ points | tojson }}</script>
+  </div>
+</section>
+
+<section class="panel table-wrap">
+  <table class="history">
+    <thead>
+      <tr><th>Data</th><th>Tipo</th><th>Livelli</th><th>Corrette</th><th>%</th><th>Esito</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for point in points | reverse %}
+      {% set is_exam = point.mode == "exam" %}
+      <tr>
+        <td class="num">{{ point.date }}</td>
+        <td><span class="line-key {{ 'key-exam' if is_exam else 'key-practice' }}"></span> {{ "Esame" if is_exam else "Esercitazione" }}</td>
+        <td><span class="levels">{% for level in point.levels %}<span class="level-dot level-{{ level }}" title="{{ LEVEL_LABELS[level] }}"></span>{% endfor %}</span></td>
+        <td class="num">{{ point.correct }}/{{ point.total }}</td>
+        <td class="num">{{ point.percent | round | int }}%</td>
+        <td>
+          {% if is_exam %}
+          <span class="pill {{ 'pill-ok' if point.passed else 'pill-ko' }}">{{ "Promosso" if point.passed else "Bocciato" }}</span>
+          {% endif %}
+        </td>
+        <td><a href="{{ point.url }}">Dettagli</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<section class="panel">
+  <p class="empty">Nessun esame o esercitazione completati.</p>
+  <div class="link-row" style="margin-top: 1rem">
+    <a class="btn btn-primary" href="/esame">Inizia un esame</a>
+    <a class="btn" href="/esercitazione">Inizia un&rsquo;esercitazione</a>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

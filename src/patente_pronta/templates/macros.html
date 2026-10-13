@@ -1,0 +1,46 @@
+{% macro level_control(question) -%}
+<div class="level-control" data-question-id="{{ question.id }}" data-level="{{ question.level }}">
+  <div class="level-options" role="radiogroup" aria-label="Livello della domanda">
+    {% for level in LEVELS %}
+    <button type="button" role="radio" data-level="{{ level }}"
+      class="level-option level-{{ level }}{% if level == question.default_level %} is-default{% endif %}"
+      aria-checked="{{ 'true' if level == question.level else 'false' }}"
+      {% if level == question.default_level %}title="Livello originale"{% endif %}>{{ LEVEL_LABELS[level] }}</button>
+    {% endfor %}
+  </div>
+  <button type="button" class="level-reset" aria-label="Ripristina il livello originale ({{ LEVEL_LABELS[question.default_level] }})"
+    title="Ripristina il livello originale ({{ LEVEL_LABELS[question.default_level] }})"
+    {% if question.level == question.default_level %}hidden{% endif %}>&#8634;</button>
+</div>
+{%- endmacro %}
+
+{% macro figure(path, class_name) -%}
+<img class="{{ class_name }}" src="/{{ path }}" alt="Figura della domanda" loading="lazy">
+{%- endmacro %}
+
+{% macro answer_label(value) -%}
+{% if value is none %}nessuna{% elif value %}Vero{% else %}Falso{% endif %}
+{%- endmacro %}
+
+{% macro level_toggles(selected, totals) -%}
+<div class="toggle-row">
+  {% for level in LEVELS %}
+  <label class="toggle">
+    <input type="checkbox" name="level" value="{{ level }}" {% if level in selected %}checked{% endif %}>
+    <span class="level-dot level-{{ level }}"></span>{{ LEVEL_LABELS[level] }}
+    {% if totals %}<small>{{ totals[level] | it_number }}</small>{% endif %}
+  </label>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro error_box(error) -%}
+{% if error %}<p class="notice" role="alert">{{ error }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro level_bar(counts, class_name) -%}
+{% set total = counts.values() | sum %}
+<div class="{{ class_name }}" role="img" aria-label="{% for level in LEVELS %}{{ LEVEL_LABELS[level] }} {{ counts[level] }}{{ ', ' if not loop.last }}{% endfor %}">
+  {% for level in LEVELS %}{% if counts[level] %}<span class="level-{{ level }}" style="flex: {{ counts[level] }} 0 0"></span>{% endif %}{% endfor %}
+</div>
+{%- endmacro %}

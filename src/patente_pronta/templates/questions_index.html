@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "macros.html" import level_bar %}
+{% block title %}Domande &middot; Patente Pronta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Domande</h1>
+</div>
+<section class="panel">
+  <ul class="chapter-links">
+    {% for chapter in chapters %}
+    {% set full = counts[chapter.id] %}
+    <li>
+      <a href="/domande/{{ chapter.id }}">
+        <span class="chapter-link-title">{{ chapter.title }}</span>
+        <span class="mini-levels">
+          {{ level_bar(full, "mini-bar") }}
+          <span class="mini-counts">
+            {% for level in LEVELS %}<span title="{{ LEVEL_LABELS[level] }}"><span class="level-dot level-{{ level }}"></span>{{ full[level] }}</span>{% endfor %}
+          </span>
+        </span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

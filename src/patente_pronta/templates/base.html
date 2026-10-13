@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Patente Pronta{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&display=swap">
+  <link rel="icon" type="image/png" href="/static/patente-pronta-logo-only.png">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+  {% block scripts %}{% endblock %}
+</head>
+<body>
+  {% set path = request.url.path %}
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="/">
+        <span class="logo-plate"><img class="brand-logo" src="/static/patente-pronta-logo-only.png" alt="" width="589" height="508"></span>
+        <span>Patente <span class="brand-pronta">Pronta</span></span>
+      </a>
+      <nav class="site-nav" aria-label="Sezioni">
+        {% for href, label in [("/esame", "Esame"), ("/esercitazione", "Esercitazione"), ("/domande", "Domande"), ("/storico", "Storico")] %}
+        <a href="{{ href }}" {% if path.startswith(href) %}aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "macros.html" import figure, level_control %}
+{% block title %}{{ chapter.title }} &middot; Patente Pronta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <p class="eyebrow"><a href="/domande">Domande</a></p>
+  <h1>{{ chapter.title }}</h1>
+  <p class="chapter-full-title">{{ chapter.full_title }}</p>
+</div>
+
+<div class="toolbar">
+  <form method="get" class="filter-form" data-auto-submit>
+    {% for level in LEVELS %}
+    <label class="toggle">
+      <input type="checkbox" name="level" value="{{ level }}" {% if level in selected_levels %}checked{% endif %}>
+      <span class="level-dot level-{{ level }}"></span>{{ LEVEL_LABELS[level] }}
+    </label>
+    {% endfor %}
+    <noscript><button type="submit" class="btn btn-small">Filtra</button></noscript>
+  </form>
+  <label class="toggle">
+    <input type="checkbox" id="hide-answers" data-hide-answers> Nascondi risposte
+  </label>
+</div>
+
+<div class="topic-list">
+{% for topic, questions in topics %}
+<section class="panel topic">
+  <div class="topic-head">
+    <h2>Quesito {{ topic.id }}</h2>
+    <span class="topic-count">{{ topic.questions | length }} domande</span>
+  </div>
+  {% if topic.figures %}
+  <div class="topic-figures">
+    {% for path in topic.figures %}{{ figure(path, "topic-figure") }}{% endfor %}
+  </div>
+  {% endif %}
+  <ul class="question-list">
+    {% for question in questions %}
+    <li class="question-row">
+      <button type="button" class="answer-badge {{ 'true' if question.answer else 'false' }}"
+        title="Tocca per mostrare o nascondere">{{ "V" if question.answer else "F" }}</button>
+      <div class="question-row-body">
+        {% if question.figures != topic.figures %}
+        {% for path in question.figures %}{{ figure(path, "inline-figure") }}{% endfor %}
+        {% endif %}
+        <span>{{ question.text }}</span>
+      </div>
+      {{ level_control(question) }}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<p class="empty">Nessuna domanda con i livelli scelti.</p>
+{% endfor %}
+</div>
+{% endblock %}

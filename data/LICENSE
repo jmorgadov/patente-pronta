@@ -1,0 +1,21 @@
+The files in this directory are NOT covered by the MIT License at the root of this repository.
+
+quiz-AB.pdf
+  "Patente AB" (conseguimento): the official list of quiz questions for driving licences A and B.
+  Source: Ministero delle Infrastrutture e dei Trasporti, published on the Portale
+  dell'Automobilista:
+  https://www.ilportaledellautomobilista.it/web/portale-automobilista/-/quiz-per-le-patenti-am-b-superiori-e-cqc
+  Original file name: 210926_Conseguimento A-B italiano.pdf
+  License: Creative Commons Attribution 3.0 Italy (CC BY 3.0 IT), as stated in the ministry's
+  legal notes (https://www.mit.gov.it/note-legali).
+  Full license text: https://creativecommons.org/licenses/by/3.0/it/legalcode
+
+quiz.json and figures/
+  Adapted from quiz-AB.pdf by scripts/extract_quiz.py. The question texts, answers, quesito and
+  chapter structure and the images are extracted from the PDF. Changes made: the content was
+  restructured as JSON, broken apostrophes and line breaks were fixed, identical images were
+  stored once, and short chapter names and starting difficulty levels (assigned with AI) were
+  added. These adapted files are distributed under the same CC BY 3.0 IT license.
+
+Patente Pronta is not affiliated with or endorsed by the Ministero delle Infrastrutture e dei
+Trasporti or the Motorizzazione Civile.

@@ -1,0 +1,2 @@
+class NotEnoughQuestionsError(ValueError):
+    pass

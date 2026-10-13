@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "macros.html" import figure, level_control, answer_label %}
+{% block title %}Risultato &middot; Patente Pronta{% endblock %}
+{% block content %}
+{% set total = attempt.answers | length %}
+{% set is_exam = attempt.mode == "exam" %}
+{% set to_review = answers | rejectattr("is_correct") | list %}
+{% set right = answers | selectattr("is_correct") | list %}
+
+<section class="panel result {% if is_exam %}{{ 'passed' if passed else 'failed' }}{% endif %}">
+  <div class="result-score">{{ correct }}<small>/{{ total }}</small></div>
+  <div class="result-body">
+    <p class="eyebrow">{{ "Esame" if is_exam else "Esercitazione" }} &middot; {{ attempt.finished_at.astimezone().strftime("%d/%m/%Y %H:%M") }}</p>
+    {% if is_exam %}
+    <h1>{{ "Promosso!" if passed else "Bocciato" }}</h1>
+    {% elif attempt.is_complete %}
+    <h1>Esercitazione completata</h1>
+    {% else %}
+    <h1>Esercitazione interrotta</h1>
+    {% endif %}
+    <p class="result-meta">
+      {{ correct }}/{{ total }} corrette &middot; {{ wrong }} sbagliate
+      {%- if revealed %} &middot; {{ revealed }} rivelate{% endif %}
+      {%- if unanswered %} &middot; {{ unanswered }} senza risposta{% endif %}
+    </p>
+    {% if not is_exam and not attempt.is_complete %}
+    <p class="muted">Non salvata nello storico.</p>
+    {% endif %}
+  </div>
+  <div class="result-actions">
+    <a class="btn btn-primary" href="{{ '/esame' if is_exam else '/esercitazione' }}">{{ "Nuovo esame" if is_exam else "Nuova esercitazione" }}</a>
+    <a class="btn" href="/storico">Vai allo storico</a>
+  </div>
+</section>
+
+{% macro review_items(items) -%}
+<ol class="panel review-list">
+  {% for item in items %}
+  {% set question = item.question %}
+  <li class="review-item">
+    {% for path in question.figures %}{{ figure(path, "review-figure") }}{% endfor %}
+    <div class="review-body">
+      <p class="question-text">{{ question.text }}</p>
+      <div class="answer-compare">
+        <span class="pill pill-neutral">Risposta: {{ answer_label(question.answer) }}</span>
+        {% if item.revealed %}
+        <span class="pill pill-ko">Rivelata</span>
+        {% elif item.given is none %}
+        <span class="pill pill-ko">Senza risposta</span>
+        {% else %}
+        <span class="pill {{ 'pill-ok' if item.is_correct else 'pill-ko' }}">Tu: {{ answer_label(item.given) }}</span>
+        {% endif %}
+      </div>
+      <div class="review-foot">
+        <span class="question-topic">{{ question.topic.chapter.title }} &middot; Quesito {{ question.topic.id }}</span>
+        {{ level_control(question) }}
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+{%- endmacro %}
+
+{% if to_review %}
+<section class="review-section">
+  <h2>Da ripassare ({{ to_review | length }})</h2>
+  {{ review_items(to_review) }}
+</section>
+{% endif %}
+
+{% if right %}
+<details class="review-section" {% if not to_review %}open{% endif %}>
+  <summary><h2>Corrette ({{ right | length }})</h2></summary>
+  {{ review_items(right) }}
+</details>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "macros.html" import level_bar %}
+{% block content %}
+<div class="page-head">
+  <h1>Il tuo ripasso</h1>
+</div>
+
+<div class="stat-row">
+  <div class="stat">
+    <span class="stat-label">Ultimo esame</span>
+    {% if last_exam %}
+    {% set passed = last_exam.correct >= EXAM_PASS_MARK %}
+    <span class="stat-value">{{ last_exam.correct }}<small>/{{ last_exam.answers | length }}</small>
+      <span class="pill {{ 'pill-ok' if passed else 'pill-ko' }}">{{ "Promosso" if passed else "Bocciato" }}</span></span>
+    {% else %}
+    <span class="stat-value"><small>Nessuno ancora</small></span>
+    {% endif %}
+  </div>
+  <div class="stat">
+    <span class="stat-label">Esami superati</span>
+    <span class="stat-value">{{ exams_passed }}<small>su {{ exams_taken }}</small></span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Esercitazioni completate</span>
+    <span class="stat-value">{{ practices_completed }}</span>
+  </div>
+</div>
+
+<div class="action-grid">
+  <a class="action action-primary" href="/esame">
+    <h2>Esame</h2>
+    <p>{{ EXAM_SIZE }} domande &middot; {{ EXAM_MINUTES }} minuti &middot; massimo {{ EXAM_SIZE - EXAM_PASS_MARK }} errori</p>
+    <span class="action-cta">Inizia &rarr;</span>
+  </a>
+  <a class="action" href="/esercitazione">
+    <h2>Esercitazione</h2>
+    <p>Senza tempo, per capitolo e livello</p>
+    <span class="action-cta">Inizia &rarr;</span>
+  </a>
+</div>
+
+<section class="panel level-map">
+  <div class="panel-head">
+    <h2>Domande per livello</h2>
+    <a href="/domande">Vedi tutte &rarr;</a>
+  </div>
+  {{ level_bar(level_totals, "level-bar") }}
+  <ul class="level-legend">
+    {% for level in LEVELS %}
+    <li><span class="level-dot level-{{ level }}"></span>{{ LEVEL_LABELS[level] }} <strong>{{ level_totals[level] | it_number }}</strong></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

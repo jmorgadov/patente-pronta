@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "macros.html" import level_toggles, error_box %}
+{% block title %}Esame &middot; Patente Pronta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Nuovo esame</h1>
+</div>
+
+<form method="post" action="/esame" class="setup">
+  <section class="panel setup-group">
+  <div class="rule-row">
+    <div class="rule"><strong>{{ EXAM_SIZE }}</strong><span>domande</span></div>
+    <div class="rule"><strong>{{ EXAM_MINUTES }}</strong><span>minuti</span></div>
+    <div class="rule"><strong>{{ EXAM_SIZE - EXAM_PASS_MARK }}</strong><span>errori al massimo</span></div>
+  </div>
+  {{ error_box(error) }}
+  <fieldset>
+    <legend>Livelli</legend>
+    {{ level_toggles(selected_levels, level_totals) }}
+  </fieldset>
+  </section>
+  <div class="setup-actions">
+    <button type="submit" class="btn btn-primary">Inizia l'esame</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "macros.html" import figure %}
+{% block title %}Esame in corso &middot; Patente Pronta{% endblock %}
+{% block scripts %}<script src="/static/quiz.js" defer></script>{% endblock %}
+{% block content %}
+{% set total = attempt.answers | length %}
+<div class="quiz" data-mode="exam" data-answer-url="/esame/{{ attempt.id }}/risposte"
+  data-remaining="{{ remaining_seconds }}">
+  <div class="quiz-top quiz-top-exam">
+    <span class="progress-label"><span data-answered>0</span>/{{ total }}</span>
+    <div class="quiz-top-right">
+      <span class="timer" data-timer role="timer" aria-label="Tempo rimanente">--:--</span>
+      <form method="post" action="/esame/{{ attempt.id }}" data-submit-form>
+        <button type="submit" class="btn btn-primary">Consegna</button>
+      </form>
+    </div>
+    <ol class="question-strip" aria-label="Vai alla domanda">
+      {% for item in attempt.answers %}
+      <li><button type="button" class="strip-cell" data-goto="{{ loop.index0 }}">{{ item.position }}</button></li>
+      {% endfor %}
+    </ol>
+  </div>
+
+  {% for item in attempt.answers %}
+  {% set question = item.question %}
+  <article class="question-card{% if question.figures %} has-figure{% endif %}" data-position="{{ item.position }}"
+    {% if item.given is not none %}data-given="{{ 'true' if item.given else 'false' }}"{% endif %}
+    {% if not loop.first %}hidden{% endif %}>
+    {% if question.figures %}<div class="figure-frame">{% for path in question.figures %}{{ figure(path, "question-figure") }}{% endfor %}</div>{% endif %}
+    <div class="question-main">
+      <p class="question-number">Domanda {{ item.position }} di {{ total }}</p>
+      <p class="question-text">{{ question.text }}</p>
+      <div class="answer-buttons">
+        <button type="button" class="answer-btn" data-value="true">Vero <span class="kbd">V</span></button>
+        <button type="button" class="answer-btn" data-value="false">Falso <span class="kbd">F</span></button>
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+
+  <div class="quiz-nav">
+    <button type="button" class="btn" data-prev>&larr; Precedente</button>
+    <button type="button" class="btn" data-next>Successiva &rarr;</button>
+  </div>
+</div>
+{% endblock %}

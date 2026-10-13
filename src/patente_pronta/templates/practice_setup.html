@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "macros.html" import level_toggles, error_box %}
+{% block title %}Esercitazione &middot; Patente Pronta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Nuova esercitazione</h1>
+</div>
+
+<form method="post" action="/esercitazione" class="setup">
+  {{ error_box(error) }}
+  <section class="panel setup-group">
+  <fieldset>
+    <legend>Livelli</legend>
+    {{ level_toggles(selected_levels, none) }}
+  </fieldset>
+
+  <fieldset>
+    <legend>Quante domande</legend>
+    <div class="count-field">
+      <input id="practice-count" type="number" name="count" min="1" max="1000" value="{{ count }}" required aria-label="Numero di domande">
+      {% for preset in [10, 20, 30, 50] %}
+      <button type="button" class="btn btn-small" data-count-preset="{{ preset }}">{{ preset }}</button>
+      {% endfor %}
+    </div>
+  </fieldset>
+  </section>
+
+  <section class="panel">
+  <fieldset class="chapter-picker">
+    <legend>Capitoli</legend>
+    <div class="picker-actions">
+      <button type="button" class="btn btn-small" data-chapters-all>Seleziona tutti</button>
+      <button type="button" class="btn btn-small btn-quiet" data-chapters-none>Nessuno</button>
+      <span class="picker-count" data-chapters-count></span>
+    </div>
+    <div class="chapter-options">
+      {% for chapter in chapters %}
+      <label class="chapter-option" title="{{ chapter.full_title }}">
+        <input type="checkbox" name="chapter" value="{{ chapter.id }}"
+          {% if selected_chapters is none or chapter.id in selected_chapters %}checked{% endif %}>
+        {{ chapter.title }}
+      </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  </section>
+
+  <div class="setup-actions">
+    <button type="submit" class="btn btn-primary">Inizia l'esercitazione</button>
+  </div>
+</form>
+{% endblock %}
