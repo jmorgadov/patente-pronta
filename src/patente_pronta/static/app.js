@@ -103,6 +103,18 @@ function setupCountPresets() {
   });
 }
 
+function setupExclusiveToggles() {
+  document.querySelectorAll("[data-excludes]").forEach((toggle) => {
+    const excluded = toggle.form.elements.namedItem(toggle.dataset.excludes);
+    const sync = () => {
+      excluded.disabled = toggle.checked;
+      if (toggle.checked) excluded.checked = false;
+    };
+    toggle.addEventListener("change", sync);
+    sync();
+  });
+}
+
 function setupHideAnswers() {
   const toggle = document.querySelector("[data-hide-answers]");
   if (!toggle) return;
@@ -126,6 +138,7 @@ function setupHideAnswers() {
 document.addEventListener("DOMContentLoaded", () => {
   setupChapterPicker();
   setupCountPresets();
+  setupExclusiveToggles();
   setupHideAnswers();
   document.querySelectorAll("form[data-auto-submit]").forEach((form) => {
     form.addEventListener("change", () => form.submit());

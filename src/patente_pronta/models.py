@@ -13,6 +13,12 @@ class Level(StrEnum):
     HARD = "hard"
 
 
+class Pool(StrEnum):
+    ALL = "all"
+    UNSEEN = "unseen"
+    WRONG = "wrong"
+
+
 class Mode(StrEnum):
     EXAM = "exam"
     PRACTICE = "practice"
@@ -102,13 +108,24 @@ class ExamSettings(BaseModel):
     levels: list[Level]
     unseen_only: bool
 
+    @property
+    def pool(self) -> Pool:
+        return Pool.UNSEEN if self.unseen_only else Pool.ALL
+
 
 class PracticeSettings(BaseModel):
     levels: list[Level]
     chapters: list[int] | None
     count: int = PydanticField(ge=1, le=1000)
     unseen_only: bool
+    wrong_only: bool = False
     instant_feedback: bool
+
+    @property
+    def pool(self) -> Pool:
+        if self.wrong_only:
+            return Pool.WRONG
+        return Pool.UNSEEN if self.unseen_only else Pool.ALL
 
 
 class RevealIn(BaseModel):

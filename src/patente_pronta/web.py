@@ -109,7 +109,7 @@ def exam_start(
     if not levels:
         return _exam_setup(request, session, settings, "Seleziona almeno un livello")
     try:
-        attempt = store.start_exam(session, levels, unseen_only, rng, now)
+        attempt = store.start_exam(session, levels, settings.pool, rng, now)
     except NotEnoughQuestionsError as err:
         return _exam_setup(request, session, settings, str(err))
     return _redirect_saving(f"/esame/{attempt.id}", EXAM_SETTINGS_COOKIE, settings)
@@ -167,13 +167,15 @@ def practice_start(
     chapters: Annotated[list[int], Form(alias="chapter", default_factory=list)],
     count: Annotated[int, Form(ge=1, le=1000)],
     unseen_only: CheckboxForm,
+    wrong_only: CheckboxForm,
     instant_feedback: CheckboxForm,
 ) -> Response:
     settings = PracticeSettings(
         levels=levels,
         chapters=chapters,
         count=count,
-        unseen_only=unseen_only,
+        unseen_only=unseen_only and not wrong_only,
+        wrong_only=wrong_only,
         instant_feedback=instant_feedback,
     )
     error = None
@@ -184,7 +186,7 @@ def practice_start(
     else:
         try:
             attempt = store.start_practice(
-                session, levels, chapters, count, unseen_only, instant_feedback, rng, now
+                session, levels, chapters, count, settings.pool, instant_feedback, rng, now
             )
         except NotEnoughQuestionsError as err:
             error = str(err)
@@ -320,6 +322,7 @@ def _practice_setup(
         "selected_chapters": settings.chapters,
         "count": settings.count,
         "unseen_only": settings.unseen_only,
+        "wrong_only": settings.wrong_only,
         "instant_feedback": settings.instant_feedback,
         "error": error,
     }

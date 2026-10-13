@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 
 from patente_pronta import store
 from patente_pronta.main import create_app
-from patente_pronta.models import Attempt, Chapter, Level, Question
+from patente_pronta.models import Attempt, Chapter, Level, Pool, Question
 from patente_pronta.settings import Settings
 
 DATA_DIR = Path("data")
@@ -43,14 +43,14 @@ def main() -> None:
                 list(Level),
                 rng.sample(chapters, 4),
                 PRACTICE_SIZE,
-                False,
+                Pool.ALL,
                 True,
                 rng,
                 evening,
             )
             _play(session, practice, round(practice_rate * PRACTICE_SIZE), rng, evening)
             exam_start = evening + timedelta(minutes=40)
-            exam = store.start_exam(session, list(Level), False, rng, exam_start)
+            exam = store.start_exam(session, list(Level), Pool.ALL, rng, exam_start)
             _play(session, exam, exam_correct, rng, exam_start)
     app.state.engine.dispose()
     print(f"Demo database written to {DEMO_DB}")

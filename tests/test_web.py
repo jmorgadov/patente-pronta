@@ -495,6 +495,50 @@ def test_unseen_only_exam_needs_enough_unseen_topics(client: TestClient, app: Fa
     assert 'name="unseen_only" value="true" checked' in response.text
 
 
+def test_wrong_only_practice_follows_the_last_answer(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_practice(client, ALL_LEVELS, [1], 4)
+    wrong, fixed, revealed, right = _attempt(app, attempt_id, Mode.PRACTICE).answers
+    url = f"/esercitazione/{attempt_id}/risposte"
+    _answer(client, url, wrong.position, not wrong.question.answer)
+    _answer(client, url, fixed.position, not fixed.question.answer)
+    _reveal(client, attempt_id, revealed.position)
+    _answer(client, url, right.position, right.question.answer)
+
+    retry_id = _start_wrong_only_practice(client, {})
+    retry = _attempt(app, retry_id, Mode.PRACTICE).answers
+    again = next(a for a in retry if a.question_id == fixed.question_id)
+    _answer(client, f"/esercitazione/{retry_id}/risposte", again.position, again.question.answer)
+    last_id = _start_wrong_only_practice(client, {})
+
+    first_pool = {a.question_id for a in retry}
+    last_pool = {a.question_id for a in _attempt(app, last_id, Mode.PRACTICE).answers}
+    assert first_pool == {wrong.question_id, fixed.question_id, revealed.question_id}
+    assert last_pool == {wrong.question_id, revealed.question_id}
+
+
+def test_wrong_only_overrides_unseen_only(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_practice(client, ALL_LEVELS, [1], 1)
+    _reveal(client, attempt_id, 1)
+
+    retry_id = _start_wrong_only_practice(client, {"unseen_only": "true"})
+    page = client.get("/esercitazione").text
+
+    assert len(_attempt(app, retry_id, Mode.PRACTICE).answers) == 1
+    assert 'name="wrong_only" value="true" data-excludes="unseen_only" checked' in page
+    assert 'name="unseen_only" value="true" >' in page
+
+
+def test_wrong_only_practice_without_wrong_answers_reports_it(client: TestClient) -> None:
+    response = client.post(
+        "/esercitazione",
+        data=_practice_form(ALL_LEVELS, [1], 10) | {"wrong_only": "true"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    assert "Nessuna domanda" in response.text
+
+
 def test_chapter_page_shows_whether_each_question_was_seen(
     client: TestClient, app: FastAPI
 ) -> None:
@@ -569,6 +613,11 @@ def _start_practice(client: TestClient, levels: list[str], chapters: list[int], 
 
 def _start_blind_practice(client: TestClient, chapters: list[int], count: int) -> int:
     return _start_practice_with(client, _practice_form(ALL_LEVELS, chapters, count))
+
+
+def _start_wrong_only_practice(client: TestClient, extra: dict[str, Any]) -> int:
+    form = _practice_form(ALL_LEVELS, [1], 100) | {"wrong_only": "true"} | extra
+    return _start_practice_with(client, form)
 
 
 def _start_practice_with(client: TestClient, form: dict[str, Any]) -> int:

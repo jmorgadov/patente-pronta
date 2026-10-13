@@ -2,19 +2,29 @@ import random
 from collections.abc import Sequence
 from datetime import datetime
 
-from sqlalchemy import ColumnElement, func
+from sqlalchemy import ColumnElement, and_, func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
+from sqlmodel.sql.expression import SelectOfScalar
 
-from patente_pronta.models import Attempt, AttemptAnswer, Chapter, Level, Mode, Question, Topic
+from patente_pronta.models import (
+    Attempt,
+    AttemptAnswer,
+    Chapter,
+    Level,
+    Mode,
+    Pool,
+    Question,
+    Topic,
+)
 from patente_pronta.quiz import EXAM_DURATION, Candidate, draw_exam, draw_practice
 
 
 def start_exam(
-    session: Session, levels: Sequence[Level], unseen_only: bool, rng: random.Random, now: datetime
+    session: Session, levels: Sequence[Level], pool: Pool, rng: random.Random, now: datetime
 ) -> Attempt:
     rows = session.exec(
-        select(Question.id, Question.topic_id).where(*_pool(levels, unseen_only))
+        select(Question.id, Question.topic_id).where(*_drawable(levels, pool))
     ).all()
     candidates = [Candidate(question_id=qid, topic_id=tid) for qid, tid in rows if qid]
     question_ids = draw_exam(candidates, rng)
@@ -28,7 +38,7 @@ def start_practice(
     levels: Sequence[Level],
     chapter_ids: Sequence[int],
     count: int,
-    unseen_only: bool,
+    pool: Pool,
     instant_feedback: bool,
     rng: random.Random,
     now: datetime,
@@ -36,7 +46,7 @@ def start_practice(
     rows = session.exec(
         select(Question.id)
         .join(Topic)
-        .where(*_pool(levels, unseen_only), col(Topic.chapter_id).in_(chapter_ids))
+        .where(*_drawable(levels, pool), col(Topic.chapter_id).in_(chapter_ids))
     ).all()
     question_ids = draw_practice([qid for qid in rows if qid], count, rng)
     return _create_attempt(
@@ -174,11 +184,38 @@ def seen_totals(session: Session) -> dict[Level, int]:
     return _counts_by_level(session, [col(Question.seen).is_(True)])
 
 
-def _pool(levels: Sequence[Level], unseen_only: bool) -> list[ColumnElement[bool]]:
+def _drawable(levels: Sequence[Level], pool: Pool) -> list[ColumnElement[bool]]:
     conditions: list[ColumnElement[bool]] = [col(Question.level).in_(levels)]
-    if unseen_only:
-        conditions.append(col(Question.seen).is_(False))
+    match pool:
+        case Pool.UNSEEN:
+            conditions.append(col(Question.seen).is_(False))
+        case Pool.WRONG:
+            conditions.append(col(Question.id).in_(_last_answered_wrong()))
+        case Pool.ALL:
+            pass
     return conditions
+
+
+def _last_answered_wrong() -> SelectOfScalar[int]:
+    done = or_(col(AttemptAnswer.given).is_not(None), col(AttemptAnswer.revealed))
+    latest = (
+        select(AttemptAnswer.question_id, func.max(AttemptAnswer.attempt_id).label("attempt_id"))
+        .where(done)
+        .group_by(col(AttemptAnswer.question_id))
+        .subquery()
+    )
+    return (
+        select(AttemptAnswer.question_id)
+        .join(
+            latest,
+            and_(
+                col(AttemptAnswer.question_id) == latest.c.question_id,
+                col(AttemptAnswer.attempt_id) == latest.c.attempt_id,
+            ),
+        )
+        .join(Question)
+        .where(or_(col(AttemptAnswer.revealed), col(AttemptAnswer.given) != col(Question.answer)))
+    )
 
 
 def _counts_by_level(

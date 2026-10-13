@@ -25,10 +25,20 @@
       </div>
     </div>
 
-    <div class="setting-row" role="group" aria-labelledby="options-label">
-      <span class="setting-label" id="options-label">Opzioni</span>
+    <div class="setting-row" role="group" aria-labelledby="filters-label">
+      <span class="setting-label" id="filters-label">Filtri</span>
       <div class="toggle-row">
-        {{ unseen_toggle(unseen_only) }}
+        {{ unseen_toggle(unseen_only and not wrong_only) }}
+        <label class="toggle" title="Domande la cui ultima risposta è stata sbagliata o rivelata">
+          <input type="checkbox" name="wrong_only" value="true" data-excludes="unseen_only" {% if wrong_only %}checked{% endif %}>
+          Solo domande sbagliate
+        </label>
+      </div>
+    </div>
+
+    <div class="setting-row" role="group" aria-labelledby="answers-label">
+      <span class="setting-label" id="answers-label">Risposte</span>
+      <div class="toggle-row">
         <label class="toggle" title="Se disattivato, puoi cambiare le risposte fino alla consegna e vedi il risultato alla fine">
           <input type="checkbox" name="instant_feedback" value="true" {% if instant_feedback %}checked{% endif %}>
           Mostra subito la risposta

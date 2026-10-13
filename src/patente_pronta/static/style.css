@@ -387,6 +387,8 @@ h3 { font-size: 1.1rem; }
   user-select: none;
 }
 .toggle:has(input:checked) { color: var(--ink); }
+.toggle:has(input:disabled) { opacity: 0.45; cursor: not-allowed; }
+.toggle input:disabled { cursor: not-allowed; }
 .toggle input {
   appearance: none;
   position: relative;

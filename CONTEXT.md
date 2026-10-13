@@ -61,6 +61,11 @@ Showing a Question's Answer in a Practice instead of answering it. A Revealed Qu
 counts as done but not correct.
 _Avoid_: Peek, check answer
 
+**Wrong Question**:
+A Question whose most recent answer, in any Attempt, was wrong or a Reveal. Answering it
+correctly later makes it no longer wrong. A Practice can be limited to Wrong Questions; that
+replaces the limit to Questions not seen yet, since every Wrong Question has been seen.
+
 **Level Filter**:
 The set of Levels a quiz draws its Questions from, chosen before it starts.
 
