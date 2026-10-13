@@ -124,6 +124,10 @@ class LevelIn(BaseModel):
     level: Level
 
 
+class SeenState(BaseModel):
+    seen: bool
+
+
 class LevelOut(BaseModel):
     level: Level
     default_level: Level

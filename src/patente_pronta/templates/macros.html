@@ -62,3 +62,10 @@
 {% macro seen_share(done, total, label) -%}
 <small class="seen-share" title="{{ label }}: {{ done }} di {{ total }} viste">{{ (100 * done / total if total else 0) | it_percent }}% viste</small>
 {%- endmacro %}
+
+{% macro seen_toggle(question) -%}
+<button type="button" class="seen-toggle" data-question-id="{{ question.id }}" aria-label="Vista"
+  aria-pressed="{{ 'true' if question.seen else 'false' }}" title="{{ 'Vista' if question.seen else 'Non vista' }}">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+</button>
+{%- endmacro %}

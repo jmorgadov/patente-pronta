@@ -23,6 +23,7 @@ from patente_pronta.models import (
     PracticeSettings,
     Question,
     RevealIn,
+    SeenState,
 )
 from patente_pronta.quiz import EXAM_DURATION, EXAM_PASS_MARK, EXAM_SIZE, is_passed
 
@@ -284,6 +285,14 @@ def question_set_level(session: SessionDep, question_id: int, body: LevelIn) -> 
 def question_reset_level(session: SessionDep, question_id: int) -> LevelOut:
     try:
         return _level_out(store.reset_level(session, question_id))
+    except LookupError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+
+
+@router.post("/api/questions/{question_id}/seen")
+def question_set_seen(session: SessionDep, question_id: int, body: SeenState) -> SeenState:
+    try:
+        return SeenState(seen=store.set_seen(session, question_id, body.seen).seen)
     except LookupError as err:
         raise HTTPException(status_code=404, detail=str(err)) from err
 

@@ -495,6 +495,31 @@ def test_unseen_only_exam_needs_enough_unseen_topics(client: TestClient, app: Fa
     assert 'name="unseen_only" value="true" checked' in response.text
 
 
+def test_chapter_page_shows_whether_each_question_was_seen(
+    client: TestClient, app: FastAPI
+) -> None:
+    _mark_seen(app, [Level.HARD])
+
+    page = client.get("/domande/1").text
+
+    assert page.count('class="seen-toggle"') == 40
+    assert page.count('aria-pressed="true" title="Vista"') == 10
+
+
+@pytest.mark.parametrize("seen", [True, False])
+def test_set_seen_by_hand(client: TestClient, app: FastAPI, seen: bool) -> None:
+    _mark_seen(app, [Level.EASY])
+
+    response = client.post(f"/api/questions/{QUESTION_ID}/seen", json={"seen": seen})
+
+    assert response.json() == {"seen": seen}
+    assert _question(app, QUESTION_ID).seen is seen
+
+
+def test_seen_of_unknown_question_is_404(client: TestClient) -> None:
+    assert client.post("/api/questions/999/seen", json={"seen": True}).status_code == 404
+
+
 def test_home_shows_seen_questions_by_current_level(client: TestClient, app: FastAPI) -> None:
     attempt_id = _start_practice(client, ["easy"], [1], 1)
     question_id = _attempt(app, attempt_id, Mode.PRACTICE).answers[0].question_id

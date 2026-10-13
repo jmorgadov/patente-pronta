@@ -112,23 +112,20 @@ def remaining_seconds(attempt: Attempt, now: datetime) -> int:
 
 
 def set_level(session: Session, question_id: int, level: Level) -> Question:
-    question = session.get(Question, question_id)
-    if question is None:
-        msg = f"No question with id {question_id}"
-        raise LookupError(msg)
+    question = _question(session, question_id)
     question.level = level
-    session.add(question)
-    session.commit()
-    session.refresh(question)
-    return question
+    return _saved_question(session, question)
 
 
 def reset_level(session: Session, question_id: int) -> Question:
-    question = session.get(Question, question_id)
-    if question is None:
-        msg = f"No question with id {question_id}"
-        raise LookupError(msg)
+    question = _question(session, question_id)
     return set_level(session, question_id, question.default_level)
+
+
+def set_seen(session: Session, question_id: int, seen: bool) -> Question:
+    question = _question(session, question_id)
+    question.seen = seen
+    return _saved_question(session, question)
 
 
 def chapters(session: Session) -> Sequence[Chapter]:
@@ -194,6 +191,21 @@ def _counts_by_level(
     for level, count in rows:
         totals[Level(level)] = count
     return totals
+
+
+def _question(session: Session, question_id: int) -> Question:
+    question = session.get(Question, question_id)
+    if question is None:
+        msg = f"No question with id {question_id}"
+        raise LookupError(msg)
+    return question
+
+
+def _saved_question(session: Session, question: Question) -> Question:
+    session.add(question)
+    session.commit()
+    session.refresh(question)
+    return question
 
 
 def _open_answer(attempt: Attempt, position: int, now: datetime) -> AttemptAnswer:

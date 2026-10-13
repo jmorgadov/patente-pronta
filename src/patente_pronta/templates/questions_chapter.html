@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import figure, level_control, level_toggles %}
+{% from "macros.html" import figure, level_control, level_toggles, seen_toggle %}
 {% block title %}{{ chapter.title }} &middot; Patente Pronta{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -41,7 +41,10 @@
         {% endif %}
         <span>{{ question.text }}</span>
       </div>
-      {{ level_control(question) }}
+      <div class="question-row-tools">
+        {{ seen_toggle(question) }}
+        {{ level_control(question) }}
+      </div>
     </li>
     {% endfor %}
   </ul>

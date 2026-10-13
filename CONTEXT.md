@@ -35,7 +35,8 @@ The Level a Question had before the learner changed it.
 
 **Seen Question**:
 A Question the learner has answered or Revealed at least once, in any Attempt, even an
-Interrupted Practice. An Exam or a Practice can be limited to Questions not seen yet.
+Interrupted Practice. The learner can also mark a Question as seen or not seen by hand in the
+question list. An Exam or a Practice can be limited to Questions not seen yet.
 _Avoid_: Done, studied
 
 ## Quizzes
