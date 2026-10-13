@@ -1,30 +1,28 @@
 {% extends "base.html" %}
-{% from "macros.html" import level_toggles, error_box, unseen_toggle %}
+{% from "macros.html" import level_toggles, error_box, unseen_toggle, start_button %}
 {% block title %}Esame &middot; Patente Pronta{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>Nuovo esame</h1>
+  <p class="lead">{{ EXAM_SIZE }} domande da argomenti diversi in {{ EXAM_MINUTES }} minuti: superi l'esame con al massimo {{ EXAM_SIZE - EXAM_PASS_MARK }} errori.</p>
 </div>
 
 <form method="post" action="/esame" class="setup">
-  <section class="panel setup-group">
-  <div class="rule-row">
-    <div class="rule"><strong>{{ EXAM_SIZE }}</strong><span>domande</span></div>
-    <div class="rule"><strong>{{ EXAM_MINUTES }}</strong><span>minuti</span></div>
-    <div class="rule"><strong>{{ EXAM_SIZE - EXAM_PASS_MARK }}</strong><span>errori al massimo</span></div>
-  </div>
   {{ error_box(error) }}
-  <fieldset>
-    <legend>Livelli</legend>
-    {{ level_toggles(selected_levels, level_totals) }}
-  </fieldset>
-  <fieldset>
-    <legend>Domande</legend>
-    <div class="toggle-row">{{ unseen_toggle(unseen_only) }}</div>
-  </fieldset>
+  <section class="settings">
+    <div class="setting-row" role="group" aria-labelledby="levels-label">
+      <span class="setting-label" id="levels-label">Livelli</span>
+      {{ level_toggles(selected_levels, level_totals) }}
+    </div>
+
+    <div class="setting-row" role="group" aria-labelledby="options-label">
+      <span class="setting-label" id="options-label">Opzioni</span>
+      <div class="toggle-row">{{ unseen_toggle(unseen_only) }}</div>
+    </div>
   </section>
+
   <div class="setup-actions">
-    <button type="submit" class="btn btn-primary">Inizia l'esame</button>
+    {{ start_button("Inizia l'esame") }}
   </div>
 </form>
 {% endblock %}

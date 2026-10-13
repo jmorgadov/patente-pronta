@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import level_toggles, error_box, unseen_toggle %}
+{% from "macros.html" import level_toggles, error_box, unseen_toggle, start_button %}
 {% block title %}Esercitazione &middot; Patente Pronta{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -9,7 +9,7 @@
 {% set chosen = chapters | length if selected_chapters is none else selected_chapters | length %}
 <form method="post" action="/esercitazione" class="setup">
   {{ error_box(error) }}
-  <section class="panel settings">
+  <section class="settings">
     <div class="setting-row" role="group" aria-labelledby="levels-label">
       <span class="setting-label" id="levels-label">Livelli</span>
       {{ level_toggles(selected_levels, none) }}
@@ -58,7 +58,7 @@
   </section>
 
   <div class="setup-actions setup-actions-sticky">
-    <button type="submit" class="btn btn-primary">Inizia l'esercitazione</button>
+    {{ start_button("Inizia l'esercitazione") }}
   </div>
 </form>
 {% endblock %}
