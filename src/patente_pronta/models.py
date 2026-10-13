@@ -45,6 +45,7 @@ class Question(SQLModel, table=True):
     figures: list[str] = Field(sa_column=Column(JSON, nullable=False))
     level: Level = Field(index=True)
     default_level: Level
+    seen: bool
     topic: Topic = Relationship(back_populates="questions")
 
 

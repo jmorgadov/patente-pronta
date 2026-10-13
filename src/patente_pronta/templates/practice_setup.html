@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import level_toggles, error_box %}
+{% from "macros.html" import level_toggles, error_box, unseen_toggle %}
 {% block title %}Esercitazione &middot; Patente Pronta{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -13,6 +13,8 @@
     <legend>Livelli</legend>
     {{ level_toggles(selected_levels, none) }}
   </fieldset>
+
+  {{ unseen_toggle(unseen_only) }}
 
   <fieldset>
     <legend>Quante domande</legend>

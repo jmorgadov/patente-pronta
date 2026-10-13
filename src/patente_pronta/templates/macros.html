@@ -44,3 +44,15 @@
   {% for level in LEVELS %}{% if counts[level] %}<span class="level-{{ level }}" style="flex: {{ counts[level] }} 0 0"></span>{% endif %}{% endfor %}
 </div>
 {%- endmacro %}
+
+{% macro unseen_toggle(checked) -%}
+<fieldset>
+  <legend>Domande</legend>
+  <div class="toggle-row">
+    <label class="toggle">
+      <input type="checkbox" name="unseen_only" value="true" {% if checked %}checked{% endif %}>
+      Solo domande non ancora viste
+    </label>
+  </div>
+</fieldset>
+{%- endmacro %}

@@ -39,11 +39,18 @@ def main() -> None:
         ):
             evening = first_day + timedelta(days=index * 3, hours=17)
             practice = store.start_practice(
-                session, list(Level), rng.sample(chapters, 4), PRACTICE_SIZE, True, rng, evening
+                session,
+                list(Level),
+                rng.sample(chapters, 4),
+                PRACTICE_SIZE,
+                False,
+                True,
+                rng,
+                evening,
             )
             _play(session, practice, round(practice_rate * PRACTICE_SIZE), rng, evening)
             exam_start = evening + timedelta(minutes=40)
-            exam = store.start_exam(session, list(Level), rng, exam_start)
+            exam = store.start_exam(session, list(Level), False, rng, exam_start)
             _play(session, exam, exam_correct, rng, exam_start)
     app.state.engine.dispose()
     print(f"Demo database written to {DEMO_DB}")

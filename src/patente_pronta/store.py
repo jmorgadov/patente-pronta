@@ -2,7 +2,7 @@ import random
 from collections.abc import Sequence
 from datetime import datetime
 
-from sqlalchemy import func
+from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
 
@@ -11,10 +11,10 @@ from patente_pronta.quiz import EXAM_DURATION, Candidate, draw_exam, draw_practi
 
 
 def start_exam(
-    session: Session, levels: Sequence[Level], rng: random.Random, now: datetime
+    session: Session, levels: Sequence[Level], unseen_only: bool, rng: random.Random, now: datetime
 ) -> Attempt:
     rows = session.exec(
-        select(Question.id, Question.topic_id).where(col(Question.level).in_(levels))
+        select(Question.id, Question.topic_id).where(*_pool(levels, unseen_only))
     ).all()
     candidates = [Candidate(question_id=qid, topic_id=tid) for qid, tid in rows if qid]
     question_ids = draw_exam(candidates, rng)
@@ -28,6 +28,7 @@ def start_practice(
     levels: Sequence[Level],
     chapter_ids: Sequence[int],
     count: int,
+    unseen_only: bool,
     instant_feedback: bool,
     rng: random.Random,
     now: datetime,
@@ -35,7 +36,7 @@ def start_practice(
     rows = session.exec(
         select(Question.id)
         .join(Topic)
-        .where(col(Question.level).in_(levels), col(Topic.chapter_id).in_(chapter_ids))
+        .where(*_pool(levels, unseen_only), col(Topic.chapter_id).in_(chapter_ids))
     ).all()
     question_ids = draw_practice([qid for qid in rows if qid], count, rng)
     return _create_attempt(
@@ -68,6 +69,7 @@ def record_answer(
         msg = f"Question {position} of attempt {attempt.id} was revealed; it cannot be answered"
         raise ValueError(msg)
     answer.given = given
+    answer.question.seen = True
     return _saved(session, answer)
 
 
@@ -82,6 +84,7 @@ def reveal_answer(
         msg = f"Question {position} of attempt {attempt.id} is already answered"
         raise ValueError(msg)
     answer.revealed = True
+    answer.question.seen = True
     return _saved(session, answer)
 
 
@@ -172,6 +175,13 @@ def level_totals(session: Session) -> dict[Level, int]:
     for level, count in rows:
         totals[Level(level)] = count
     return totals
+
+
+def _pool(levels: Sequence[Level], unseen_only: bool) -> list[ColumnElement[bool]]:
+    conditions: list[ColumnElement[bool]] = [col(Question.level).in_(levels)]
+    if unseen_only:
+        conditions.append(col(Question.seen).is_(False))
+    return conditions
 
 
 def _open_answer(attempt: Attempt, position: int, now: datetime) -> AttemptAnswer:

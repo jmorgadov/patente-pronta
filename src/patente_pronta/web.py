@@ -80,19 +80,24 @@ def home(request: Request, session: SessionDep) -> HTMLResponse:
 
 @router.get("/esame", response_class=HTMLResponse)
 def exam_setup(request: Request, session: SessionDep) -> HTMLResponse:
-    return _exam_setup(request, session, list(Level), None)
+    return _exam_setup(request, session, list(Level), False, None)
 
 
 @router.post("/esame", response_model=None)
 def exam_start(
-    request: Request, session: SessionDep, rng: RngDep, now: NowDep, levels: LevelsForm
+    request: Request,
+    session: SessionDep,
+    rng: RngDep,
+    now: NowDep,
+    levels: LevelsForm,
+    unseen_only: CheckboxForm,
 ) -> Response:
     if not levels:
-        return _exam_setup(request, session, levels, "Seleziona almeno un livello")
+        return _exam_setup(request, session, levels, unseen_only, "Seleziona almeno un livello")
     try:
-        attempt = store.start_exam(session, levels, rng, now)
+        attempt = store.start_exam(session, levels, unseen_only, rng, now)
     except NotEnoughQuestionsError as err:
-        return _exam_setup(request, session, levels, str(err))
+        return _exam_setup(request, session, levels, unseen_only, str(err))
     return RedirectResponse(f"/esame/{attempt.id}", status_code=303)
 
 
@@ -132,7 +137,9 @@ def exam_result(request: Request, session: SessionDep, now: NowDep, attempt_id: 
 
 @router.get("/esercitazione", response_class=HTMLResponse)
 def practice_setup(request: Request, session: SessionDep) -> HTMLResponse:
-    return _practice_setup(request, session, list(Level), None, PRACTICE_DEFAULT_COUNT, True, None)
+    return _practice_setup(
+        request, session, list(Level), None, PRACTICE_DEFAULT_COUNT, False, True, None
+    )
 
 
 @router.post("/esercitazione", response_model=None)
@@ -144,6 +151,7 @@ def practice_start(
     levels: LevelsForm,
     chapters: Annotated[list[int], Form(alias="chapter", default_factory=list)],
     count: Annotated[int, Form(ge=1, le=1000)],
+    unseen_only: CheckboxForm,
     instant_feedback: CheckboxForm,
 ) -> Response:
     error = None
@@ -154,13 +162,15 @@ def practice_start(
     else:
         try:
             attempt = store.start_practice(
-                session, levels, chapters, count, instant_feedback, rng, now
+                session, levels, chapters, count, unseen_only, instant_feedback, rng, now
             )
         except NotEnoughQuestionsError as err:
             error = str(err)
         else:
             return RedirectResponse(f"/esercitazione/{attempt.id}", status_code=303)
-    return _practice_setup(request, session, levels, chapters, count, instant_feedback, error)
+    return _practice_setup(
+        request, session, levels, chapters, count, unseen_only, instant_feedback, error
+    )
 
 
 @router.get("/esercitazione/{attempt_id}", response_model=None)
@@ -259,13 +269,16 @@ def question_reset_level(session: SessionDep, question_id: int) -> LevelOut:
 
 
 def _exam_setup(
-    request: Request, session: Session, levels: list[Level], error: str | None
+    request: Request, session: Session, levels: list[Level], unseen_only: bool, error: str | None
 ) -> HTMLResponse:
+    context: dict[str, Any] = {
+        "selected_levels": levels,
+        "unseen_only": unseen_only,
+        "error": error,
+        "level_totals": store.level_totals(session),
+    }
     return templates.TemplateResponse(
-        request,
-        "exam_setup.html",
-        {"selected_levels": levels, "error": error, "level_totals": store.level_totals(session)},
-        status_code=400 if error else 200,
+        request, "exam_setup.html", context, status_code=400 if error else 200
     )
 
 
@@ -275,6 +288,7 @@ def _practice_setup(
     levels: list[Level],
     chapters: list[int] | None,
     count: int,
+    unseen_only: bool,
     instant_feedback: bool,
     error: str | None,
 ) -> HTMLResponse:
@@ -283,6 +297,7 @@ def _practice_setup(
         "selected_levels": levels,
         "selected_chapters": chapters,
         "count": count,
+        "unseen_only": unseen_only,
         "instant_feedback": instant_feedback,
         "error": error,
     }

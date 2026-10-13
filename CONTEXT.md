@@ -33,6 +33,11 @@ _Avoid_: Difficulty, simple/mid/tricky
 **Default Level**:
 The Level a Question had before the learner changed it.
 
+**Seen Question**:
+A Question the learner has answered or Revealed at least once, in any Attempt, even an
+Interrupted Practice. An Exam or a Practice can be limited to Questions not seen yet.
+_Avoid_: Done, studied
+
 ## Quizzes
 
 **Exam**:

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from patente_pronta import bank
 from patente_pronta.models import Chapter, Level, Question, Topic
@@ -31,6 +31,10 @@ def test_load_maps_answers_and_levels(session: Session) -> None:
     assert by_text["4001 false A"].answer is False
     assert by_text["4001 false A"].level == Level.MEDIUM
     assert by_text["4001 false B"].level == Level.HARD
+
+
+def test_loaded_questions_are_not_seen(session: Session) -> None:
+    assert session.exec(select(Question).where(col(Question.seen))).first() is None
 
 
 def test_figures_shared_by_every_question_belong_to_the_topic(session: Session) -> None:

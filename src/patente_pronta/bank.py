@@ -46,6 +46,7 @@ def _questions(quesito: dict[str, Any], figures: dict[str, str]) -> list[Questio
             figures=[figures[key] for key in item["figures"]],
             level=Level(item["level"]),
             default_level=Level(item["level"]),
+            seen=False,
         )
         for position, item in enumerate(items, start=1)
     ]

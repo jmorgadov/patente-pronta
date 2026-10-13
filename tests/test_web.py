@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 
 from conftest import Clock
 from patente_pronta import store
@@ -396,6 +396,50 @@ def test_reveal_unknown_position_is_404(client: TestClient) -> None:
     assert response.status_code == 404
 
 
+def test_answering_or_revealing_marks_questions_as_seen(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_practice(client, ALL_LEVELS, [1], 3)
+    _answer(client, f"/esercitazione/{attempt_id}/risposte", 1, True)
+    _reveal(client, attempt_id, 2)
+
+    answers = _attempt(app, attempt_id, Mode.PRACTICE).answers
+
+    assert [answer.question.seen for answer in answers] == [True, True, False]
+
+
+def test_unseen_only_practice_skips_seen_questions(client: TestClient, app: FastAPI) -> None:
+    _mark_seen(app, [Level.EASY])
+
+    attempt_id = _start_practice_with(
+        client, _practice_form(ALL_LEVELS, [1], 100) | {"unseen_only": "true"}
+    )
+
+    answers = _attempt(app, attempt_id, Mode.PRACTICE).answers
+    assert len(answers) == 30
+    assert Level.EASY not in {answer.question.level for answer in answers}
+
+
+def test_unseen_only_exam_skips_seen_questions(client: TestClient, app: FastAPI) -> None:
+    _mark_seen(app, [Level.EASY])
+
+    response = client.post(
+        "/esame", data={"level": ALL_LEVELS, "unseen_only": "true"}, follow_redirects=False
+    )
+    attempt_id = int(response.headers["location"].rsplit("/", 1)[1])
+
+    answers = _attempt(app, attempt_id, Mode.EXAM).answers
+    assert Level.EASY not in {answer.question.level for answer in answers}
+
+
+def test_unseen_only_exam_needs_enough_unseen_topics(client: TestClient, app: FastAPI) -> None:
+    _mark_seen(app, [Level.EASY, Level.MEDIUM])
+
+    response = client.post("/esame", data={"level": ALL_LEVELS, "unseen_only": "true"})
+
+    assert response.status_code == 400
+    assert "argomenti diversi" in response.text
+    assert 'name="unseen_only" value="true" checked' in response.text
+
+
 def test_home_shows_exam_stats(client: TestClient, app: FastAPI) -> None:
     assert "Nessuno ancora" in client.get("/").text
     attempt_id = _start_exam(client, ALL_LEVELS)
@@ -465,6 +509,14 @@ def _attempt(app: FastAPI, attempt_id: int, mode: Mode) -> Attempt:
         for answer in attempt.answers:
             _ = answer.question.topic.chapter.title
         return attempt
+
+
+def _mark_seen(app: FastAPI, levels: list[Level]) -> None:
+    with Session(app.state.engine) as session:
+        for question in session.exec(select(Question).where(col(Question.level).in_(levels))):
+            question.seen = True
+            session.add(question)
+        session.commit()
 
 
 def _question(app: FastAPI, question_id: int) -> Question:
