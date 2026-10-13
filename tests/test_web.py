@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
@@ -127,6 +128,33 @@ def test_practice_page_shows_answers_and_levels(client: TestClient) -> None:
     assert page.count('class="question-card') == 5
     assert page.count("data-answer=") == 5
     assert page.count('class="level-control"') == 5
+
+
+def test_practice_setup_shows_answers_right_away_by_default(client: TestClient) -> None:
+    page = client.get("/esercitazione").text
+
+    assert 'name="instant_feedback" value="true" checked' in page
+
+
+def test_blind_practice_page_hides_answers(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_blind_practice(client, [1, 2], 5)
+
+    page = client.get(f"/esercitazione/{attempt_id}").text
+
+    assert _attempt(app, attempt_id, Mode.PRACTICE).instant_feedback is False
+    assert page.count('class="question-card') == 5
+    assert "data-answer=" not in page
+    assert "Mostra la risposta" not in page
+    assert page.count('class="strip-cell"') == 5
+    assert "Consegna" in page
+
+
+def test_blind_practice_answers_can_change(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_blind_practice(client, [1], 2)
+    _answer(client, f"/esercitazione/{attempt_id}/risposte", 1, True)
+    _answer(client, f"/esercitazione/{attempt_id}/risposte", 1, False)
+
+    assert _attempt(app, attempt_id, Mode.PRACTICE).answers[0].given is False
 
 
 @pytest.mark.parametrize(
@@ -380,13 +408,22 @@ def _start_exam(client: TestClient, levels: list[str]) -> int:
 
 
 def _start_practice(client: TestClient, levels: list[str], chapters: list[int], count: int) -> int:
-    response = client.post(
-        "/esercitazione",
-        data={"level": levels, "chapter": [str(c) for c in chapters], "count": str(count)},
-        follow_redirects=False,
-    )
+    form = _practice_form(levels, chapters, count) | {"instant_feedback": "true"}
+    return _start_practice_with(client, form)
+
+
+def _start_blind_practice(client: TestClient, chapters: list[int], count: int) -> int:
+    return _start_practice_with(client, _practice_form(ALL_LEVELS, chapters, count))
+
+
+def _start_practice_with(client: TestClient, form: dict[str, Any]) -> int:
+    response = client.post("/esercitazione", data=form, follow_redirects=False)
     assert response.status_code == 303
     return int(response.headers["location"].rsplit("/", 1)[1])
+
+
+def _practice_form(levels: list[str], chapters: list[int], count: int) -> dict[str, Any]:
+    return {"level": levels, "chapter": [str(c) for c in chapters], "count": str(count)}
 
 
 def _complete_practice(client: TestClient, app: FastAPI) -> int:

@@ -45,6 +45,11 @@ An untimed quiz showing each Question's Level, where the learner either answers 
 or Reveals it.
 _Avoid_: Practice exam, training
 
+**Instant Feedback**:
+A Practice option, on by default: the Answer is shown as soon as the learner answers or
+Reveals a Question. Without it the Practice works like an Exam without a timer: answers can be
+changed until the learner hands it in, and are checked only in the summary.
+
 **Reveal**:
 Showing a Question's Answer in a Practice instead of answering it. A Revealed Question
 counts as done but not correct.

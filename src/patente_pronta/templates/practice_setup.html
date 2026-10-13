@@ -23,6 +23,17 @@
       {% endfor %}
     </div>
   </fieldset>
+
+  <fieldset>
+    <legend>Risposte</legend>
+    <div class="toggle-row">
+      <label class="toggle">
+        <input type="checkbox" name="instant_feedback" value="true" {% if instant_feedback %}checked{% endif %}>
+        Mostra subito la risposta corretta
+      </label>
+    </div>
+    <p class="field-hint">Se disattivato, puoi cambiare le risposte fino alla consegna e vedi il risultato alla fine.</p>
+  </fieldset>
   </section>
 
   <section class="panel">

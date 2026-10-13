@@ -39,7 +39,7 @@ def main() -> None:
         ):
             evening = first_day + timedelta(days=index * 3, hours=17)
             practice = store.start_practice(
-                session, list(Level), rng.sample(chapters, 4), PRACTICE_SIZE, rng, evening
+                session, list(Level), rng.sample(chapters, 4), PRACTICE_SIZE, True, rng, evening
             )
             _play(session, practice, round(practice_rate * PRACTICE_SIZE), rng, evening)
             exam_start = evening + timedelta(minutes=40)

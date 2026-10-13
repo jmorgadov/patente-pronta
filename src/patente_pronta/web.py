@@ -58,6 +58,7 @@ SessionDep = Annotated[Session, Depends(get_session)]
 RngDep = Annotated[random.Random, Depends(get_rng)]
 NowDep = Annotated[datetime, Depends(get_now)]
 LevelsForm = Annotated[list[Level], Form(alias="level", default_factory=list)]
+CheckboxForm = Annotated[bool, Form(default_factory=bool)]
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -131,7 +132,7 @@ def exam_result(request: Request, session: SessionDep, now: NowDep, attempt_id: 
 
 @router.get("/esercitazione", response_class=HTMLResponse)
 def practice_setup(request: Request, session: SessionDep) -> HTMLResponse:
-    return _practice_setup(request, session, list(Level), None, PRACTICE_DEFAULT_COUNT, None)
+    return _practice_setup(request, session, list(Level), None, PRACTICE_DEFAULT_COUNT, True, None)
 
 
 @router.post("/esercitazione", response_model=None)
@@ -143,6 +144,7 @@ def practice_start(
     levels: LevelsForm,
     chapters: Annotated[list[int], Form(alias="chapter", default_factory=list)],
     count: Annotated[int, Form(ge=1, le=1000)],
+    instant_feedback: CheckboxForm,
 ) -> Response:
     error = None
     if not levels:
@@ -151,12 +153,14 @@ def practice_start(
         error = "Seleziona almeno un capitolo"
     else:
         try:
-            attempt = store.start_practice(session, levels, chapters, count, rng, now)
+            attempt = store.start_practice(
+                session, levels, chapters, count, instant_feedback, rng, now
+            )
         except NotEnoughQuestionsError as err:
             error = str(err)
         else:
             return RedirectResponse(f"/esercitazione/{attempt.id}", status_code=303)
-    return _practice_setup(request, session, levels, chapters, count, error)
+    return _practice_setup(request, session, levels, chapters, count, instant_feedback, error)
 
 
 @router.get("/esercitazione/{attempt_id}", response_model=None)
@@ -271,6 +275,7 @@ def _practice_setup(
     levels: list[Level],
     chapters: list[int] | None,
     count: int,
+    instant_feedback: bool,
     error: str | None,
 ) -> HTMLResponse:
     context: dict[str, Any] = {
@@ -278,6 +283,7 @@ def _practice_setup(
         "selected_levels": levels,
         "selected_chapters": chapters,
         "count": count,
+        "instant_feedback": instant_feedback,
         "error": error,
     }
     return templates.TemplateResponse(

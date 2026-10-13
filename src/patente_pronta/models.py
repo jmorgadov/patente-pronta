@@ -52,6 +52,7 @@ class Attempt(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     mode: Mode
     levels: str
+    instant_feedback: bool
     started_at: datetime
     deadline: datetime | None
     finished_at: datetime | None

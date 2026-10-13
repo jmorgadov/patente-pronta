@@ -18,7 +18,9 @@ def start_exam(
     ).all()
     candidates = [Candidate(question_id=qid, topic_id=tid) for qid, tid in rows if qid]
     question_ids = draw_exam(candidates, rng)
-    return _create_attempt(session, Mode.EXAM, levels, question_ids, now, now + EXAM_DURATION)
+    return _create_attempt(
+        session, Mode.EXAM, levels, False, question_ids, now, now + EXAM_DURATION
+    )
 
 
 def start_practice(
@@ -26,6 +28,7 @@ def start_practice(
     levels: Sequence[Level],
     chapter_ids: Sequence[int],
     count: int,
+    instant_feedback: bool,
     rng: random.Random,
     now: datetime,
 ) -> Attempt:
@@ -35,7 +38,9 @@ def start_practice(
         .where(col(Question.level).in_(levels), col(Topic.chapter_id).in_(chapter_ids))
     ).all()
     question_ids = draw_practice([qid for qid in rows if qid], count, rng)
-    return _create_attempt(session, Mode.PRACTICE, levels, question_ids, now, None)
+    return _create_attempt(
+        session, Mode.PRACTICE, levels, instant_feedback, question_ids, now, None
+    )
 
 
 def get_attempt(session: Session, attempt_id: int, mode: Mode) -> Attempt:
@@ -188,6 +193,7 @@ def _create_attempt(
     session: Session,
     mode: Mode,
     levels: Sequence[Level],
+    instant_feedback: bool,
     question_ids: Sequence[int],
     now: datetime,
     deadline: datetime | None,
@@ -195,6 +201,7 @@ def _create_attempt(
     attempt = Attempt(
         mode=mode,
         levels=",".join(levels),
+        instant_feedback=instant_feedback,
         started_at=now,
         deadline=deadline,
         finished_at=None,

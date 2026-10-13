@@ -338,6 +338,7 @@ h3 { font-size: 1.1rem; }
 .toggle input { margin: 0; width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
 .toggle:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .toggle small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.field-hint { margin: 0; color: var(--muted); font-size: 0.85rem; }
 
 .count-field { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .count-field input {
