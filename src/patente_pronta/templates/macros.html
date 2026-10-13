@@ -23,11 +23,11 @@
 {%- endmacro %}
 
 {% macro level_toggles(selected, totals) -%}
-<div class="toggle-row">
+<div class="level-picker">
   {% for level in LEVELS %}
-  <label class="toggle">
-    <input type="checkbox" name="level" value="{{ level }}" {% if level in selected %}checked{% endif %}>
-    <span class="level-dot level-{{ level }}"></span>{{ LEVEL_LABELS[level] }}
+  <label class="level-chip level-{{ level }}">
+    <input type="checkbox" class="chip-input" name="level" value="{{ level }}" {% if level in selected %}checked{% endif %}>
+    <span class="level-chip-mark" aria-hidden="true"></span>{{ LEVEL_LABELS[level] }}
     {% if totals %}<small>{{ totals[level] | it_number }}</small>{% endif %}
   </label>
   {% endfor %}

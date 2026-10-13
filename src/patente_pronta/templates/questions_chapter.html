@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import figure, level_control %}
+{% from "macros.html" import figure, level_control, level_toggles %}
 {% block title %}{{ chapter.title }} &middot; Patente Pronta{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -10,12 +10,7 @@
 
 <div class="toolbar">
   <form method="get" class="filter-form" data-auto-submit>
-    {% for level in LEVELS %}
-    <label class="toggle">
-      <input type="checkbox" name="level" value="{{ level }}" {% if level in selected_levels %}checked{% endif %}>
-      <span class="level-dot level-{{ level }}"></span>{{ LEVEL_LABELS[level] }}
-    </label>
-    {% endfor %}
+    {{ level_toggles(selected_levels, none) }}
     <noscript><button type="submit" class="btn btn-small">Filtra</button></noscript>
   </form>
   <label class="toggle">
