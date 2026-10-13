@@ -67,6 +67,14 @@ class Attempt(SQLModel, table=True):
             return False
         return self.mode == Mode.EXAM or all(answer.is_done for answer in self.answers)
 
+    @property
+    def level_counts(self) -> dict[Level, int]:
+        counts = dict.fromkeys(Level, 0)
+        for answer in self.answers:
+            if answer.level is not None:
+                counts[answer.level] += 1
+        return counts
+
 
 class AttemptAnswer(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -75,6 +83,7 @@ class AttemptAnswer(SQLModel, table=True):
     question_id: int = Field(foreign_key="question.id")
     given: bool | None
     revealed: bool
+    level: Level | None
     attempt: Attempt = Relationship(back_populates="answers")
     question: Question = Relationship()
 

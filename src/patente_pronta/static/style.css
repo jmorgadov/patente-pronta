@@ -747,7 +747,7 @@ h3 { font-size: 1.1rem; }
 .history th:first-child, .history td:first-child { padding-left: 0; }
 .history th { color: var(--muted); font-weight: 500; font-size: 0.82rem; }
 .history td.num { font-variant-numeric: tabular-nums; }
-.history .levels { display: inline-flex; gap: 0.2rem; }
+.level-split { display: inline-flex; flex-direction: column; gap: 0.25rem; }
 
 /* ---------- Small screens ---------- */
 

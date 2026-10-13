@@ -320,7 +320,7 @@ def _progress_point(attempt: Attempt) -> dict[str, Any]:
         "total": total,
         "percent": round(100 * correct / total, 1) if total else 0,
         "passed": is_passed(correct),
-        "levels": attempt.levels.split(","),
+        "level_counts": attempt.level_counts,
         "url": _review_url(attempt),
     }
 

@@ -1,4 +1,13 @@
 {% extends "base.html" %}
+{% from "macros.html" import level_bar %}
+{% macro level_split(counts, total) -%}
+<span class="level-split">
+  {{ level_bar(counts, "mini-bar") }}
+  <span class="mini-counts">
+    {% for level in LEVELS %}<span title="{{ LEVEL_LABELS[level] }}: {{ counts[level] }}"><span class="level-dot level-{{ level }}"></span>{{ (100 * counts[level] / total) | round | int if total else 0 }}%</span>{% endfor %}
+  </span>
+</span>
+{%- endmacro %}
 {% block title %}Storico &middot; Patente Pronta{% endblock %}
 {% block scripts %}<script src="/static/chart.js" defer></script>{% endblock %}
 {% block content %}
@@ -34,7 +43,7 @@
       <tr>
         <td class="num">{{ point.date }}</td>
         <td><span class="line-key {{ 'key-exam' if is_exam else 'key-practice' }}"></span> {{ "Esame" if is_exam else "Esercitazione" }}</td>
-        <td><span class="levels">{% for level in point.levels %}<span class="level-dot level-{{ level }}" title="{{ LEVEL_LABELS[level] }}"></span>{% endfor %}</span></td>
+        <td>{{ level_split(point.level_counts, point.total) }}</td>
         <td class="num">{{ point.correct }}/{{ point.total }}</td>
         <td class="num">{{ point.percent | round | int }}%</td>
         <td>

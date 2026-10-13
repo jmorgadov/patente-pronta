@@ -323,6 +323,20 @@ def test_history_chart_points_are_oldest_first(
     assert points[1]["correct"] == 0
 
 
+def test_history_keeps_the_levels_of_finished_attempts(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _complete_practice(client, app)
+    attempt = _attempt(app, attempt_id, Mode.PRACTICE)
+    counts = {level: sum(a.question.level == level for a in attempt.answers) for level in Level}
+    for answer in attempt.answers:
+        client.post(f"/api/questions/{answer.question_id}/level", json={"level": "hard"})
+
+    page = client.get("/storico").text
+
+    assert _attempt(app, attempt_id, Mode.PRACTICE).level_counts == counts
+    assert page.count('class="mini-bar"') == 1
+    assert f'title="Difficile: {counts[Level.HARD]}"' in page
+
+
 def test_history_without_attempts_invites_to_start(client: TestClient) -> None:
     page = client.get("/storico").text
 

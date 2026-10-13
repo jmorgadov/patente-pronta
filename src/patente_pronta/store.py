@@ -90,7 +90,10 @@ def finish(session: Session, attempt: Attempt, now: datetime) -> None:
         return
     attempt.finished_at = now
     attempt.correct = sum(answer.is_correct for answer in attempt.answers)
+    for answer in attempt.answers:
+        answer.level = answer.question.level
     session.add(attempt)
+    session.add_all(attempt.answers)
     session.commit()
 
 
@@ -214,7 +217,12 @@ def _create_attempt(
         raise RuntimeError(msg)
     session.add_all(
         AttemptAnswer(
-            attempt_id=attempt.id, position=position, question_id=qid, given=None, revealed=False
+            attempt_id=attempt.id,
+            position=position,
+            question_id=qid,
+            given=None,
+            revealed=False,
+            level=None,
         )
         for position, qid in enumerate(question_ids, start=1)
     )
