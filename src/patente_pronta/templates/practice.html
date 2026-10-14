@@ -4,26 +4,41 @@
 {% block scripts %}<script src="/static/quiz.js" defer></script>{% endblock %}
 {% block content %}
 {% set total = attempt.answers | length %}
-<div class="quiz" data-mode="practice" data-answer-url="/esercitazione/{{ attempt.id }}/risposte"
+{% set instant = attempt.instant_feedback %}
+<div class="quiz" data-mode="practice" data-instant-feedback="{{ 'true' if instant else 'false' }}"
+  data-answer-url="/esercitazione/{{ attempt.id }}/risposte"
   data-reveal-url="/esercitazione/{{ attempt.id }}/rivela">
   <div class="quiz-top">
     <span class="progress-label"><span data-answered>0</span>/{{ total }}</span>
     <div class="progress-track" aria-hidden="true"><div class="progress-fill" data-progress></div></div>
     <div class="quiz-top-right">
+      {% if instant %}
       <span class="score-chips">
         <span class="pill pill-ok" title="Corrette">&check; <span data-correct>0</span></span>
         <span class="pill pill-ko" title="Sbagliate o rivelate">&cross; <span data-wrong>0</span></span>
       </span>
+      {% endif %}
       <form method="post" action="/esercitazione/{{ attempt.id }}/fine" data-submit-form>
+        {% if instant %}
         <button type="submit" class="btn btn-small btn-quiet">Interrompi</button>
+        {% else %}
+        <button type="submit" class="btn btn-primary">Consegna</button>
+        {% endif %}
       </form>
     </div>
+    {% if not instant %}
+    <ol class="question-strip" aria-label="Vai alla domanda">
+      {% for item in attempt.answers %}
+      <li><button type="button" class="strip-cell" data-goto="{{ loop.index0 }}">{{ item.position }}</button></li>
+      {% endfor %}
+    </ol>
+    {% endif %}
   </div>
 
   {% for item in attempt.answers %}
   {% set question = item.question %}
   <article class="question-card{% if question.figures %} has-figure{% endif %}" data-position="{{ item.position }}"
-    data-answer="{{ 'true' if question.answer else 'false' }}"
+    {% if instant %}data-answer="{{ 'true' if question.answer else 'false' }}"{% endif %}
     {% if item.given is not none %}data-given="{{ 'true' if item.given else 'false' }}"{% endif %}
     {% if item.revealed %}data-revealed="true"{% endif %}
     {% if not loop.first %}hidden{% endif %}>
@@ -38,6 +53,7 @@
         <button type="button" class="answer-btn" data-value="true">Vero <span class="kbd">V</span></button>
         <button type="button" class="answer-btn" data-value="false">Falso <span class="kbd">F</span></button>
       </div>
+      {% if instant %}
       <div class="reveal-row" data-reveal-row>
         <button type="button" class="btn btn-small btn-quiet" data-reveal>Mostra la risposta <span class="kbd">R</span></button>
       </div>
@@ -49,6 +65,7 @@
         <button type="button" class="btn btn-small" data-advance>Avanti <span class="kbd">&crarr;</span></button>
         <span class="advance-bar" data-advance-bar></span>
       </div>
+      {% endif %}
       <p class="question-topic">{{ question.topic.chapter.title }} &middot; Quesito {{ question.topic.id }}</p>
     </div>
   </article>

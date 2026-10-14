@@ -92,6 +92,61 @@ make test
 
 Executes the test suite using **Pytest**, without the lint, format and type checks.
 
+### Recording the README demo GIF
+
+`docs/demo.gif` is a scripted browser walkthrough of the demo database. Recreate it whenever
+the UI changes visibly.
+
+**Storyboard** (1200×760 viewport, a visible cursor that moves to each target before
+clicking, short pauses so every state is readable; about 80 s in total):
+
+1. **Home**: hold for about 2 s.
+2. **Exam**: click the *Esame* card, then *Inizia l'esame* on the setup page. Click the
+   correct answer for questions 1 to 5. Jump back to question 2 from the number strip and
+   answer it wrong. Jump to question 6 and answer the rest correctly with the `V` / `F` keys,
+   quickly, as a fast-forward. Click *Consegna*.
+3. **Result**: 29/30 *Promosso!*. Hold, then set the level of the question to review to
+   *Difficile*.
+4. **Storico**: hover across the progress chart from left to right so the tooltips show.
+5. **Esercitazione setup**: turn off the *Facile* chip, pick the *10* preset, turn on
+   *Solo domande sbagliate* and open the *Capitoli* picker. Start.
+6. **Practice**: answer one question correctly and let it auto-advance. Answer the next one
+   wrong, set its level to *Difficile* and click *Avanti*. On the third, click
+   *Mostra la risposta*, then *Avanti*.
+7. **Domande**: open *Segnali di pericolo* and scroll a little. Mark two questions as seen
+   with the eye toggle, set one level to *Difficile*, turn on *Nascondi risposte* and tap two
+   answer badges to reveal them. Scroll back up.
+8. **Home**: click the logo and hold on the dashboard.
+
+**How it was recorded**
+
+- Run `uv run python scripts/seed_demo.py`, then serve `data/demo.db` on port 8001 as
+  `make demo` does. The seed deletes and recreates the file, so restart the server after
+  every re-seed.
+- Drive Chromium with Playwright (`uv run --with playwright ...`). An init script draws a
+  fake cursor that follows `mousemove` and shrinks on `mousedown`, and it keeps its position
+  in `sessionStorage` across navigations. Click with `page.mouse.move(..., steps=22)` followed
+  by `down` and `up`, instead of `locator.click()`, so the cursor visibly travels.
+- Exam answers are not in the page. Read the right ones from `data/demo.db` by joining
+  `attemptanswer` and `question` on the attempt id in the URL. Practice cards with instant
+  feedback expose the answer in `data-answer`.
+- Level buttons use the enum values, as in `.level-option.level-hard` and
+  `label.level-chip.level-easy`. Pressing a level control cancels the practice auto-advance,
+  so click *Avanti* afterwards.
+- Capture frames with a CDP screencast (`Page.startScreencast`, PNG format), not Playwright's
+  video recording. The VP8 video is noisy, and GIF frame-diffing then makes a file over 10 MB.
+  Write each frame's timestamp into an ffmpeg concat list (`file` and `duration` lines).
+- Build the GIF (about 1.7 MB):
+
+  ```bash
+  ffmpeg -f concat -safe 0 -i frames.txt \
+    -vf "fps=15,mpdecimate=max=0:hi=1:lo=1:frac=0,split[a][b];[a]palettegen=max_colors=256:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
+    -fps_mode vfr -loop 0 -final_delay 350 docs/demo.gif
+  ```
+
+  `-final_delay` keeps the last frame on screen, because `mpdecimate` drops the duplicate
+  frames of the final hold.
+
 ### Creating the Repository
 
 Initialise the local repository and create its first commit on `main`:

@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!root) return;
 
   const isPractice = root.dataset.mode === "practice";
+  const instant = isPractice && root.dataset.instantFeedback === "true";
   const cards = [...root.querySelectorAll(".question-card")];
   const cells = [...root.querySelectorAll(".strip-cell")];
   const submitForm = root.querySelector("[data-submit-form]");
@@ -35,10 +36,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function render(card) {
     const given = card.dataset.given;
     const expected = card.dataset.answer;
-    const done = isPractice && isDone(card);
+    const done = instant && isDone(card);
     card.querySelectorAll(".answer-btn").forEach((button) => {
       const value = button.dataset.value;
-      if (!isPractice) {
+      if (!instant) {
         button.classList.toggle("selected", value === given);
         return;
       }
@@ -47,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
       button.classList.toggle("wrong", done && value === given && value !== expected);
       button.classList.toggle("dimmed", done && value !== expected && value !== given);
     });
-    if (!isPractice) return;
+    if (!instant) return;
     card.querySelector("[data-reveal-row]").hidden = done;
     const feedback = card.querySelector("[data-feedback]");
     feedback.hidden = !done;
@@ -75,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const progress = root.querySelector("[data-progress]");
     if (progress) progress.style.width = `${(100 * done.length) / cards.length}%`;
     cells.forEach((cell, i) => cell.classList.toggle("answered", isDone(cards[i])));
-    if (!isPractice) return;
+    if (!instant) return;
     const correct = done.filter(isCorrect).length;
     root.querySelector("[data-correct]").textContent = correct;
     root.querySelector("[data-wrong]").textContent = done.length - correct;
@@ -95,12 +96,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function answer(value) {
     const card = cards[current];
-    if (isPractice && isDone(card)) return;
+    if (instant && isDone(card)) return;
     card.dataset.given = value;
     render(card);
     updateCounters();
     post(root.dataset.answerUrl, { position: Number(card.dataset.position), given: value === "true" });
-    if (isPractice) {
+    if (instant) {
       scheduleAdvance(isCorrect(card) ? PRACTICE_ADVANCE_MS.ok : PRACTICE_ADVANCE_MS.ko);
     } else {
       cancelAdvance();
@@ -110,7 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function reveal() {
     const card = cards[current];
-    if (!isPractice || isDone(card)) return;
+    if (!instant || isDone(card)) return;
     card.dataset.revealed = "true";
     render(card);
     updateCounters();
@@ -178,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
     else if (key === "r") reveal();
     else if (key === "arrowleft") show(current - 1);
     else if (key === "arrowright") show(current + 1);
-    else if (key === "enter" && isPractice && isDone(cards[current]) && !event.target.closest("button, a")) {
+    else if (key === "enter" && instant && isDone(cards[current]) && !event.target.closest("button, a")) {
       nextPracticeQuestion();
     } else return;
     event.preventDefault();
@@ -187,9 +188,12 @@ document.addEventListener("DOMContentLoaded", () => {
   submitForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const missing = cards.filter((card) => !isDone(card)).length;
-    const question = isPractice
-      ? `Mancano ${missing} domande: se interrompi ora, l'esercitazione non verrà salvata nello storico. Interrompere?`
-      : `Hai ${missing} domande senza risposta, che conteranno come errori. Consegnare comunque?`;
+    let question = `Hai ${missing} domande senza risposta, che conteranno come errori. Consegnare comunque?`;
+    if (instant) {
+      question = `Mancano ${missing} domande: se interrompi ora, l'esercitazione non verrà salvata nello storico. Interrompere?`;
+    } else if (isPractice) {
+      question = `Mancano ${missing} domande: se consegni ora, l'esercitazione non verrà salvata nello storico. Consegnare comunque?`;
+    }
     if (missing > 0 && !window.confirm(question)) return;
     finish();
   });
@@ -217,5 +221,5 @@ document.addEventListener("DOMContentLoaded", () => {
   updateCounters();
   const firstOpen = cards.findIndex((card) => !isDone(card));
   show(firstOpen === -1 ? 0 : firstOpen);
-  if (isPractice && firstOpen === -1) finish();
+  if (instant && firstOpen === -1) finish();
 });

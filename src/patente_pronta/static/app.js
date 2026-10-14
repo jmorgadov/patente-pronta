@@ -31,6 +31,29 @@ function markLevel(control, level) {
   });
 }
 
+async function toggleSeen(button) {
+  const seen = button.getAttribute("aria-pressed") !== "true";
+  button.classList.remove("failed");
+  markSeen(button, seen);
+  try {
+    const response = await fetch(`/api/questions/${button.dataset.questionId}/seen`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seen }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    markSeen(button, (await response.json()).seen);
+  } catch {
+    markSeen(button, !seen);
+    button.classList.add("failed");
+  }
+}
+
+function markSeen(button, seen) {
+  button.setAttribute("aria-pressed", String(seen));
+  button.title = seen ? "Vista" : "Non vista";
+}
+
 document.addEventListener("click", (event) => {
   const option = event.target.closest(".level-option");
   if (option) {
@@ -45,6 +68,11 @@ document.addEventListener("click", (event) => {
   if (reset) {
     const control = reset.closest(".level-control");
     saveLevel(control, `/api/questions/${control.dataset.questionId}/level/reset`, null);
+    return;
+  }
+  const seen = event.target.closest(".seen-toggle");
+  if (seen) {
+    toggleSeen(seen);
     return;
   }
   const badge = event.target.closest(".answer-badge");
@@ -75,6 +103,18 @@ function setupCountPresets() {
   });
 }
 
+function setupExclusiveToggles() {
+  document.querySelectorAll("[data-excludes]").forEach((toggle) => {
+    const excluded = toggle.form.elements.namedItem(toggle.dataset.excludes);
+    const sync = () => {
+      excluded.disabled = toggle.checked;
+      if (toggle.checked) excluded.checked = false;
+    };
+    toggle.addEventListener("change", sync);
+    sync();
+  });
+}
+
 function setupHideAnswers() {
   const toggle = document.querySelector("[data-hide-answers]");
   if (!toggle) return;
@@ -98,6 +138,7 @@ function setupHideAnswers() {
 document.addEventListener("DOMContentLoaded", () => {
   setupChapterPicker();
   setupCountPresets();
+  setupExclusiveToggles();
   setupHideAnswers();
   document.querySelectorAll("form[data-auto-submit]").forEach((form) => {
     form.addEventListener("change", () => form.submit());

@@ -33,6 +33,12 @@ _Avoid_: Difficulty, simple/mid/tricky
 **Default Level**:
 The Level a Question had before the learner changed it.
 
+**Seen Question**:
+A Question the learner has answered or Revealed at least once, in any Attempt, even an
+Interrupted Practice. The learner can also mark a Question as seen or not seen by hand in the
+question list. An Exam or a Practice can be limited to Questions not seen yet.
+_Avoid_: Done, studied
+
 ## Quizzes
 
 **Exam**:
@@ -45,10 +51,20 @@ An untimed quiz showing each Question's Level, where the learner either answers 
 or Reveals it.
 _Avoid_: Practice exam, training
 
+**Instant Feedback**:
+A Practice option, on by default: the Answer is shown as soon as the learner answers or
+Reveals a Question. Without it the Practice works like an Exam without a timer: answers can be
+changed until the learner hands it in, and are checked only in the summary.
+
 **Reveal**:
 Showing a Question's Answer in a Practice instead of answering it. A Revealed Question
 counts as done but not correct.
 _Avoid_: Peek, check answer
+
+**Wrong Question**:
+A Question whose most recent answer, in any Attempt, was wrong or a Reveal. Answering it
+correctly later makes it no longer wrong. A Practice can be limited to Wrong Questions; that
+replaces the limit to Questions not seen yet, since every Wrong Question has been seen.
 
 **Level Filter**:
 The set of Levels a quiz draws its Questions from, chosen before it starts.

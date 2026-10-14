@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel
+from pydantic import Field as PydanticField
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -10,6 +11,12 @@ class Level(StrEnum):
     EASY = "easy"
     MEDIUM = "medium"
     HARD = "hard"
+
+
+class Pool(StrEnum):
+    ALL = "all"
+    UNSEEN = "unseen"
+    WRONG = "wrong"
 
 
 class Mode(StrEnum):
@@ -45,6 +52,7 @@ class Question(SQLModel, table=True):
     figures: list[str] = Field(sa_column=Column(JSON, nullable=False))
     level: Level = Field(index=True)
     default_level: Level
+    seen: bool
     topic: Topic = Relationship(back_populates="questions")
 
 
@@ -52,6 +60,7 @@ class Attempt(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     mode: Mode
     levels: str
+    instant_feedback: bool
     started_at: datetime
     deadline: datetime | None
     finished_at: datetime | None
@@ -66,6 +75,14 @@ class Attempt(SQLModel, table=True):
             return False
         return self.mode == Mode.EXAM or all(answer.is_done for answer in self.answers)
 
+    @property
+    def level_counts(self) -> dict[Level, int]:
+        counts = dict.fromkeys(Level, 0)
+        for answer in self.answers:
+            if answer.level is not None:
+                counts[answer.level] += 1
+        return counts
+
 
 class AttemptAnswer(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -74,6 +91,7 @@ class AttemptAnswer(SQLModel, table=True):
     question_id: int = Field(foreign_key="question.id")
     given: bool | None
     revealed: bool
+    level: Level | None
     attempt: Attempt = Relationship(back_populates="answers")
     question: Question = Relationship()
 
@@ -84,6 +102,30 @@ class AttemptAnswer(SQLModel, table=True):
     @property
     def is_correct(self) -> bool:
         return not self.revealed and self.given == self.question.answer
+
+
+class ExamSettings(BaseModel):
+    levels: list[Level]
+    unseen_only: bool
+
+    @property
+    def pool(self) -> Pool:
+        return Pool.UNSEEN if self.unseen_only else Pool.ALL
+
+
+class PracticeSettings(BaseModel):
+    levels: list[Level]
+    chapters: list[int] | None
+    count: int = PydanticField(ge=1, le=1000)
+    unseen_only: bool
+    wrong_only: bool = False
+    instant_feedback: bool
+
+    @property
+    def pool(self) -> Pool:
+        if self.wrong_only:
+            return Pool.WRONG
+        return Pool.UNSEEN if self.unseen_only else Pool.ALL
 
 
 class RevealIn(BaseModel):
@@ -97,6 +139,10 @@ class AnswerIn(BaseModel):
 
 class LevelIn(BaseModel):
     level: Level
+
+
+class SeenState(BaseModel):
+    seen: bool
 
 
 class LevelOut(BaseModel):

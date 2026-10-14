@@ -1,10 +1,11 @@
 import json
 from datetime import timedelta
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 
 from conftest import Clock
 from patente_pronta import store
@@ -127,6 +128,88 @@ def test_practice_page_shows_answers_and_levels(client: TestClient) -> None:
     assert page.count('class="question-card') == 5
     assert page.count("data-answer=") == 5
     assert page.count('class="level-control"') == 5
+
+
+def test_practice_setup_shows_answers_right_away_by_default(client: TestClient) -> None:
+    page = client.get("/esercitazione").text
+
+    assert 'name="instant_feedback" value="true" checked' in page
+
+
+def test_practice_setup_collapses_chapters_when_all_are_chosen(client: TestClient) -> None:
+    every = client.get("/esercitazione").text
+    some = client.post("/esercitazione", data={"chapter": ["1", "2"], "count": "10"}).text
+
+    assert '<details class="chapter-picker" >' in every
+    assert "4/4" in every
+    assert '<details class="chapter-picker" open>' in some
+    assert "2/4" in some
+
+
+def test_practice_setup_remembers_the_last_started_settings(client: TestClient) -> None:
+    _start_practice_with(client, _practice_form(["easy"], [1], 7) | {"unseen_only": "true"})
+
+    page = client.get("/esercitazione").text
+
+    assert 'name="level" value="easy" checked' in page
+    assert 'name="level" value="hard" >' in page
+    assert 'value="7"' in page
+    assert '<details class="chapter-picker" open>' in page
+    assert "1/4" in page
+    assert 'name="unseen_only" value="true" checked' in page
+    assert 'name="instant_feedback" value="true" >' in page
+
+
+def test_practice_setup_ignores_settings_that_failed_to_start(client: TestClient) -> None:
+    client.post("/esercitazione", data={"chapter": ["1"], "count": "7"})
+
+    page = client.get("/esercitazione").text
+
+    assert 'value="30"' in page
+    assert "4/4" in page
+
+
+def test_practice_setup_ignores_a_broken_cookie(client: TestClient) -> None:
+    client.cookies.set("practice_settings", "not json")
+
+    page = client.get("/esercitazione").text
+
+    assert 'value="30"' in page
+    assert 'name="instant_feedback" value="true" checked' in page
+
+
+def test_exam_setup_remembers_the_last_started_settings(client: TestClient) -> None:
+    response = client.post(
+        "/esame", data={"level": ["medium"], "unseen_only": "true"}, follow_redirects=False
+    )
+    assert response.status_code == 303
+
+    page = client.get("/esame").text
+
+    assert 'name="level" value="medium" checked' in page
+    assert 'name="level" value="easy" >' in page
+    assert 'name="unseen_only" value="true" checked' in page
+
+
+def test_blind_practice_page_hides_answers(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_blind_practice(client, [1, 2], 5)
+
+    page = client.get(f"/esercitazione/{attempt_id}").text
+
+    assert _attempt(app, attempt_id, Mode.PRACTICE).instant_feedback is False
+    assert page.count('class="question-card') == 5
+    assert "data-answer=" not in page
+    assert "Mostra la risposta" not in page
+    assert page.count('class="strip-cell"') == 5
+    assert "Consegna" in page
+
+
+def test_blind_practice_answers_can_change(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_blind_practice(client, [1], 2)
+    _answer(client, f"/esercitazione/{attempt_id}/risposte", 1, True)
+    _answer(client, f"/esercitazione/{attempt_id}/risposte", 1, False)
+
+    assert _attempt(app, attempt_id, Mode.PRACTICE).answers[0].given is False
 
 
 @pytest.mark.parametrize(
@@ -295,6 +378,20 @@ def test_history_chart_points_are_oldest_first(
     assert points[1]["correct"] == 0
 
 
+def test_history_keeps_the_levels_of_finished_attempts(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _complete_practice(client, app)
+    attempt = _attempt(app, attempt_id, Mode.PRACTICE)
+    counts = {level: sum(a.question.level == level for a in attempt.answers) for level in Level}
+    for answer in attempt.answers:
+        client.post(f"/api/questions/{answer.question_id}/level", json={"level": "hard"})
+
+    page = client.get("/storico").text
+
+    assert _attempt(app, attempt_id, Mode.PRACTICE).level_counts == counts
+    assert page.count('class="mini-bar"') == 1
+    assert f'title="Difficile: {counts[Level.HARD]}"' in page
+
+
 def test_history_without_attempts_invites_to_start(client: TestClient) -> None:
     page = client.get("/storico").text
 
@@ -354,6 +451,136 @@ def test_reveal_unknown_position_is_404(client: TestClient) -> None:
     assert response.status_code == 404
 
 
+def test_answering_or_revealing_marks_questions_as_seen(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_practice(client, ALL_LEVELS, [1], 3)
+    _answer(client, f"/esercitazione/{attempt_id}/risposte", 1, True)
+    _reveal(client, attempt_id, 2)
+
+    answers = _attempt(app, attempt_id, Mode.PRACTICE).answers
+
+    assert [answer.question.seen for answer in answers] == [True, True, False]
+
+
+def test_unseen_only_practice_skips_seen_questions(client: TestClient, app: FastAPI) -> None:
+    _mark_seen(app, [Level.EASY])
+
+    attempt_id = _start_practice_with(
+        client, _practice_form(ALL_LEVELS, [1], 100) | {"unseen_only": "true"}
+    )
+
+    answers = _attempt(app, attempt_id, Mode.PRACTICE).answers
+    assert len(answers) == 30
+    assert Level.EASY not in {answer.question.level for answer in answers}
+
+
+def test_unseen_only_exam_skips_seen_questions(client: TestClient, app: FastAPI) -> None:
+    _mark_seen(app, [Level.EASY])
+
+    response = client.post(
+        "/esame", data={"level": ALL_LEVELS, "unseen_only": "true"}, follow_redirects=False
+    )
+    attempt_id = int(response.headers["location"].rsplit("/", 1)[1])
+
+    answers = _attempt(app, attempt_id, Mode.EXAM).answers
+    assert Level.EASY not in {answer.question.level for answer in answers}
+
+
+def test_unseen_only_exam_needs_enough_unseen_topics(client: TestClient, app: FastAPI) -> None:
+    _mark_seen(app, [Level.EASY, Level.MEDIUM])
+
+    response = client.post("/esame", data={"level": ALL_LEVELS, "unseen_only": "true"})
+
+    assert response.status_code == 400
+    assert "argomenti diversi" in response.text
+    assert 'name="unseen_only" value="true" checked' in response.text
+
+
+def test_wrong_only_practice_follows_the_last_answer(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_practice(client, ALL_LEVELS, [1], 4)
+    wrong, fixed, revealed, right = _attempt(app, attempt_id, Mode.PRACTICE).answers
+    url = f"/esercitazione/{attempt_id}/risposte"
+    _answer(client, url, wrong.position, not wrong.question.answer)
+    _answer(client, url, fixed.position, not fixed.question.answer)
+    _reveal(client, attempt_id, revealed.position)
+    _answer(client, url, right.position, right.question.answer)
+
+    retry_id = _start_wrong_only_practice(client, {})
+    retry = _attempt(app, retry_id, Mode.PRACTICE).answers
+    again = next(a for a in retry if a.question_id == fixed.question_id)
+    _answer(client, f"/esercitazione/{retry_id}/risposte", again.position, again.question.answer)
+    last_id = _start_wrong_only_practice(client, {})
+
+    first_pool = {a.question_id for a in retry}
+    last_pool = {a.question_id for a in _attempt(app, last_id, Mode.PRACTICE).answers}
+    assert first_pool == {wrong.question_id, fixed.question_id, revealed.question_id}
+    assert last_pool == {wrong.question_id, revealed.question_id}
+
+
+def test_wrong_only_overrides_unseen_only(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_practice(client, ALL_LEVELS, [1], 1)
+    _reveal(client, attempt_id, 1)
+
+    retry_id = _start_wrong_only_practice(client, {"unseen_only": "true"})
+    page = client.get("/esercitazione").text
+
+    assert len(_attempt(app, retry_id, Mode.PRACTICE).answers) == 1
+    assert 'name="wrong_only" value="true" data-excludes="unseen_only" checked' in page
+    assert 'name="unseen_only" value="true" >' in page
+
+
+def test_wrong_only_practice_without_wrong_answers_reports_it(client: TestClient) -> None:
+    response = client.post(
+        "/esercitazione",
+        data=_practice_form(ALL_LEVELS, [1], 10) | {"wrong_only": "true"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    assert "Nessuna domanda" in response.text
+
+
+def test_chapter_page_shows_whether_each_question_was_seen(
+    client: TestClient, app: FastAPI
+) -> None:
+    _mark_seen(app, [Level.HARD])
+
+    page = client.get("/domande/1").text
+
+    assert page.count('class="seen-toggle"') == 40
+    assert page.count('aria-pressed="true" title="Vista"') == 10
+
+
+@pytest.mark.parametrize("seen", [True, False])
+def test_set_seen_by_hand(client: TestClient, app: FastAPI, seen: bool) -> None:
+    _mark_seen(app, [Level.EASY])
+
+    response = client.post(f"/api/questions/{QUESTION_ID}/seen", json={"seen": seen})
+
+    assert response.json() == {"seen": seen}
+    assert _question(app, QUESTION_ID).seen is seen
+
+
+def test_seen_of_unknown_question_is_404(client: TestClient) -> None:
+    assert client.post("/api/questions/999/seen", json={"seen": True}).status_code == 404
+
+
+def test_home_shows_seen_questions_by_current_level(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_practice(client, ["easy"], [1], 1)
+    question_id = _attempt(app, attempt_id, Mode.PRACTICE).answers[0].question_id
+    _answer(client, f"/esercitazione/{attempt_id}/risposte", 1, True)
+
+    before = client.get("/").text
+    client.post(f"/api/questions/{question_id}/level", json={"level": "hard"})
+    after = client.get("/").text
+
+    assert 'title="Tutte: 1 di 160 viste"' in before
+    assert "0,6%" in before
+    assert 'title="Facile: 1 di 70 viste"' in before
+    assert 'title="Difficile: 0 di 10 viste"' in before
+    assert 'title="Facile: 0 di 69 viste"' in after
+    assert 'title="Difficile: 1 di 11 viste"' in after
+
+
 def test_home_shows_exam_stats(client: TestClient, app: FastAPI) -> None:
     assert "Nessuno ancora" in client.get("/").text
     attempt_id = _start_exam(client, ALL_LEVELS)
@@ -380,13 +607,27 @@ def _start_exam(client: TestClient, levels: list[str]) -> int:
 
 
 def _start_practice(client: TestClient, levels: list[str], chapters: list[int], count: int) -> int:
-    response = client.post(
-        "/esercitazione",
-        data={"level": levels, "chapter": [str(c) for c in chapters], "count": str(count)},
-        follow_redirects=False,
-    )
+    form = _practice_form(levels, chapters, count) | {"instant_feedback": "true"}
+    return _start_practice_with(client, form)
+
+
+def _start_blind_practice(client: TestClient, chapters: list[int], count: int) -> int:
+    return _start_practice_with(client, _practice_form(ALL_LEVELS, chapters, count))
+
+
+def _start_wrong_only_practice(client: TestClient, extra: dict[str, Any]) -> int:
+    form = _practice_form(ALL_LEVELS, [1], 100) | {"wrong_only": "true"} | extra
+    return _start_practice_with(client, form)
+
+
+def _start_practice_with(client: TestClient, form: dict[str, Any]) -> int:
+    response = client.post("/esercitazione", data=form, follow_redirects=False)
     assert response.status_code == 303
     return int(response.headers["location"].rsplit("/", 1)[1])
+
+
+def _practice_form(levels: list[str], chapters: list[int], count: int) -> dict[str, Any]:
+    return {"level": levels, "chapter": [str(c) for c in chapters], "count": str(count)}
 
 
 def _complete_practice(client: TestClient, app: FastAPI) -> int:
@@ -414,6 +655,14 @@ def _attempt(app: FastAPI, attempt_id: int, mode: Mode) -> Attempt:
         for answer in attempt.answers:
             _ = answer.question.topic.chapter.title
         return attempt
+
+
+def _mark_seen(app: FastAPI, levels: list[Level]) -> None:
+    with Session(app.state.engine) as session:
+        for question in session.exec(select(Question).where(col(Question.level).in_(levels))):
+            question.seen = True
+            session.add(question)
+        session.commit()
 
 
 def _question(app: FastAPI, question_id: int) -> Question:

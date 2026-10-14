@@ -7,6 +7,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, ValidationError
 from sqlmodel import Session
 
 from patente_pronta import store
@@ -14,18 +15,27 @@ from patente_pronta.errors import NotEnoughQuestionsError
 from patente_pronta.models import (
     AnswerIn,
     Attempt,
+    ExamSettings,
     Level,
     LevelIn,
     LevelOut,
     Mode,
+    PracticeSettings,
     Question,
     RevealIn,
+    SeenState,
 )
 from patente_pronta.quiz import EXAM_DURATION, EXAM_PASS_MARK, EXAM_SIZE, is_passed
 
 PACKAGE_DIR = Path(__file__).parent
 LEVEL_LABELS = {Level.EASY: "Facile", Level.MEDIUM: "Media", Level.HARD: "Difficile"}
-PRACTICE_DEFAULT_COUNT = 30
+EXAM_SETTINGS_COOKIE = "exam_settings"
+PRACTICE_SETTINGS_COOKIE = "practice_settings"
+SETTINGS_MAX_AGE = 365 * 24 * 60 * 60
+DEFAULT_EXAM_SETTINGS = ExamSettings(levels=list(Level), unseen_only=False)
+DEFAULT_PRACTICE_SETTINGS = PracticeSettings(
+    levels=list(Level), chapters=None, count=30, unseen_only=False, instant_feedback=True
+)
 
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
 templates.env.globals.update(
@@ -37,6 +47,7 @@ templates.env.globals.update(
 )
 
 templates.env.filters["it_number"] = lambda value: f"{value:,}".replace(",", ".")
+templates.env.filters["it_percent"] = lambda value: f"{value:.1f}".replace(".", ",")
 
 router = APIRouter()
 
@@ -58,6 +69,7 @@ SessionDep = Annotated[Session, Depends(get_session)]
 RngDep = Annotated[random.Random, Depends(get_rng)]
 NowDep = Annotated[datetime, Depends(get_now)]
 LevelsForm = Annotated[list[Level], Form(alias="level", default_factory=list)]
+CheckboxForm = Annotated[bool, Form(default_factory=bool)]
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -69,6 +81,7 @@ def home(request: Request, session: SessionDep) -> HTMLResponse:
         "home.html",
         {
             "level_totals": store.level_totals(session),
+            "seen_totals": store.seen_totals(session),
             "last_exam": exams[-1] if exams else None,
             "exams_taken": len(exams),
             "exams_passed": sum(is_passed(exam.correct or 0) for exam in exams),
@@ -79,20 +92,27 @@ def home(request: Request, session: SessionDep) -> HTMLResponse:
 
 @router.get("/esame", response_class=HTMLResponse)
 def exam_setup(request: Request, session: SessionDep) -> HTMLResponse:
-    return _exam_setup(request, session, list(Level), None)
+    settings = _saved(request, EXAM_SETTINGS_COOKIE, ExamSettings, DEFAULT_EXAM_SETTINGS)
+    return _exam_setup(request, session, settings, None)
 
 
 @router.post("/esame", response_model=None)
 def exam_start(
-    request: Request, session: SessionDep, rng: RngDep, now: NowDep, levels: LevelsForm
+    request: Request,
+    session: SessionDep,
+    rng: RngDep,
+    now: NowDep,
+    levels: LevelsForm,
+    unseen_only: CheckboxForm,
 ) -> Response:
+    settings = ExamSettings(levels=levels, unseen_only=unseen_only)
     if not levels:
-        return _exam_setup(request, session, levels, "Seleziona almeno un livello")
+        return _exam_setup(request, session, settings, "Seleziona almeno un livello")
     try:
-        attempt = store.start_exam(session, levels, rng, now)
+        attempt = store.start_exam(session, levels, settings.pool, rng, now)
     except NotEnoughQuestionsError as err:
-        return _exam_setup(request, session, levels, str(err))
-    return RedirectResponse(f"/esame/{attempt.id}", status_code=303)
+        return _exam_setup(request, session, settings, str(err))
+    return _redirect_saving(f"/esame/{attempt.id}", EXAM_SETTINGS_COOKIE, settings)
 
 
 @router.get("/esame/{attempt_id}", response_model=None)
@@ -131,7 +151,10 @@ def exam_result(request: Request, session: SessionDep, now: NowDep, attempt_id: 
 
 @router.get("/esercitazione", response_class=HTMLResponse)
 def practice_setup(request: Request, session: SessionDep) -> HTMLResponse:
-    return _practice_setup(request, session, list(Level), None, PRACTICE_DEFAULT_COUNT, None)
+    settings = _saved(
+        request, PRACTICE_SETTINGS_COOKIE, PracticeSettings, DEFAULT_PRACTICE_SETTINGS
+    )
+    return _practice_setup(request, session, settings, None)
 
 
 @router.post("/esercitazione", response_model=None)
@@ -143,7 +166,18 @@ def practice_start(
     levels: LevelsForm,
     chapters: Annotated[list[int], Form(alias="chapter", default_factory=list)],
     count: Annotated[int, Form(ge=1, le=1000)],
+    unseen_only: CheckboxForm,
+    wrong_only: CheckboxForm,
+    instant_feedback: CheckboxForm,
 ) -> Response:
+    settings = PracticeSettings(
+        levels=levels,
+        chapters=chapters,
+        count=count,
+        unseen_only=unseen_only and not wrong_only,
+        wrong_only=wrong_only,
+        instant_feedback=instant_feedback,
+    )
     error = None
     if not levels:
         error = "Seleziona almeno un livello"
@@ -151,12 +185,15 @@ def practice_start(
         error = "Seleziona almeno un capitolo"
     else:
         try:
-            attempt = store.start_practice(session, levels, chapters, count, rng, now)
+            attempt = store.start_practice(
+                session, levels, chapters, count, settings.pool, instant_feedback, rng, now
+            )
         except NotEnoughQuestionsError as err:
             error = str(err)
         else:
-            return RedirectResponse(f"/esercitazione/{attempt.id}", status_code=303)
-    return _practice_setup(request, session, levels, chapters, count, error)
+            url = f"/esercitazione/{attempt.id}"
+            return _redirect_saving(url, PRACTICE_SETTINGS_COOKIE, settings)
+    return _practice_setup(request, session, settings, error)
 
 
 @router.get("/esercitazione/{attempt_id}", response_model=None)
@@ -254,35 +291,62 @@ def question_reset_level(session: SessionDep, question_id: int) -> LevelOut:
         raise HTTPException(status_code=404, detail=str(err)) from err
 
 
+@router.post("/api/questions/{question_id}/seen")
+def question_set_seen(session: SessionDep, question_id: int, body: SeenState) -> SeenState:
+    try:
+        return SeenState(seen=store.set_seen(session, question_id, body.seen).seen)
+    except LookupError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+
+
 def _exam_setup(
-    request: Request, session: Session, levels: list[Level], error: str | None
+    request: Request, session: Session, settings: ExamSettings, error: str | None
 ) -> HTMLResponse:
+    context: dict[str, Any] = {
+        "selected_levels": settings.levels,
+        "unseen_only": settings.unseen_only,
+        "error": error,
+        "level_totals": store.level_totals(session),
+    }
     return templates.TemplateResponse(
-        request,
-        "exam_setup.html",
-        {"selected_levels": levels, "error": error, "level_totals": store.level_totals(session)},
-        status_code=400 if error else 200,
+        request, "exam_setup.html", context, status_code=400 if error else 200
     )
 
 
 def _practice_setup(
-    request: Request,
-    session: Session,
-    levels: list[Level],
-    chapters: list[int] | None,
-    count: int,
-    error: str | None,
+    request: Request, session: Session, settings: PracticeSettings, error: str | None
 ) -> HTMLResponse:
     context: dict[str, Any] = {
         "chapters": store.chapters(session),
-        "selected_levels": levels,
-        "selected_chapters": chapters,
-        "count": count,
+        "selected_levels": settings.levels,
+        "selected_chapters": settings.chapters,
+        "count": settings.count,
+        "unseen_only": settings.unseen_only,
+        "wrong_only": settings.wrong_only,
+        "instant_feedback": settings.instant_feedback,
         "error": error,
     }
     return templates.TemplateResponse(
         request, "practice_setup.html", context, status_code=400 if error else 200
     )
+
+
+def _saved[S: BaseModel](request: Request, cookie: str, model: type[S], default: S) -> S:
+    raw = request.cookies.get(cookie)
+    if raw is None:
+        return default
+    try:
+        return model.model_validate_json(raw)
+    except ValidationError:
+        return default
+
+
+def _redirect_saving(url: str, cookie: str, settings: BaseModel) -> RedirectResponse:
+    response = RedirectResponse(url, status_code=303)
+    response.set_cookie(
+        cookie, settings.model_dump_json(), max_age=SETTINGS_MAX_AGE, httponly=True, samesite="lax"
+    )
+    return response
 
 
 def _review(request: Request, attempt: Attempt) -> HTMLResponse:
@@ -314,7 +378,7 @@ def _progress_point(attempt: Attempt) -> dict[str, Any]:
         "total": total,
         "percent": round(100 * correct / total, 1) if total else 0,
         "passed": is_passed(correct),
-        "levels": attempt.levels.split(","),
+        "level_counts": attempt.level_counts,
         "url": _review_url(attempt),
     }
 
