@@ -21,6 +21,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#the-question-bank">Question bank</a> ·
+  <a href="#study-guides">Study guides</a> ·
   <a href="#contributing">Contributing</a>
 </p>
 
@@ -53,7 +54,9 @@
   with one tap anywhere: in the list, during practice or when reviewing an exam. Exams and
   practice draw only from the levels you pick, so you can focus on what you still get wrong.
 - **Domande**: all 7,020 questions by chapter and quesito, with their figures. A
-  "hide answers" switch turns the list into self-test flashcards.
+  "hide answers" switch turns the list into self-test flashcards. A search page finds
+  questions by fuzzy text, question or quesito number, chapter, answer, level and status
+  (seen, not seen, wrong).
 - **Storico**: a progress chart with one line for exams and one for practice, plus every
   completed session with its full review. A practice only counts once you reach the last
   question.
@@ -129,6 +132,20 @@ They won't fit everyone, so you can change any of them with one tap, and your ch
 your local database. [data/README.md](data/README.md) documents the format and how to
 regenerate the JSON from the PDF with `scripts/extract_quiz.py`.
 
+## Study guides
+
+Short summaries in Italian, built from the questions in `quiz.json` and completed, where the
+quiz is silent, with the Codice della Strada (each guide says which is which):
+
+- [Limiti di velocità](guides/limiti-di-velocita.md): speed limits by vehicle and road type,
+  including rain, fog and signed exceptions.
+- [Distanza di sicurezza](guides/distanza-di-sicurezza.md): reaction, braking and stopping
+  distances, and what they depend on.
+- [Patenti A e B](guides/patenti.md): what each licence category lets you drive, the minimum
+  ages, trailers and how long a licence is valid.
+- [Sanzioni sulla patente](guides/sanzioni-patente.md): points, ritiro, sospensione,
+  revisione and revoca for each violation.
+
 ## Project layout
 
 ```
@@ -137,6 +154,7 @@ src/patente_pronta/
 ├── web.py         pages and JSON endpoints (FastAPI + Jinja2)
 ├── store.py       database queries and quiz lifecycle
 ├── quiz.py        exam and practice rules (drawing, pass mark, timer)
+├── search.py      fuzzy text search over the questions
 ├── bank.py        loads quiz.json into SQLite
 ├── models.py      SQLModel tables and API schemas
 ├── settings.py    DATA_DIR / DB_PATH from the environment

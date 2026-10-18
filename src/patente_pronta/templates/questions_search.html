@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% from "macros.html" import figure, level_control, level_toggles, seen_toggle, error_box %}
+{% block title %}Cerca domande &middot; Patente Pronta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <p class="eyebrow"><a href="/domande">Domande</a></p>
+  <h1>Cerca domande</h1>
+</div>
+
+<form method="get" action="/domande/cerca" class="search-form panel" data-auto-submit>
+  {{ error_box(error) }}
+  <div class="search-fields">
+    <label class="search-field search-text">
+      <span class="setting-label">Testo</span>
+      <input type="search" name="q" value="{{ text }}" placeholder="Es. sorpasso in curva" autocomplete="off" autofocus>
+    </label>
+    <label class="search-field search-number">
+      <span class="setting-label">ID</span>
+      <input type="text" name="id" value="{{ number }}" inputmode="numeric" placeholder="Domanda o quesito" autocomplete="off">
+    </label>
+    <label class="search-field">
+      <span class="setting-label">Capitolo</span>
+      <select name="chapter">
+        <option value="">Tutti i capitoli</option>
+        {% for item in chapters %}
+        <option value="{{ item.id }}" {% if chapter_id == item.id | string %}selected{% endif %}>{{ item.id }}. {{ item.title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="search-field">
+      <span class="setting-label">Risposta</span>
+      <select name="answer">
+        {% for value, label in answer_filters.items() %}
+        <option value="{{ value }}" {% if answer == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="search-field">
+      <span class="setting-label">Stato</span>
+      <select name="pool">
+        {% for value, label in pool_labels.items() %}
+        <option value="{{ value }}" {% if pool == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="search-actions">
+    {{ level_toggles(selected_levels, none) }}
+    <span class="search-buttons">
+      <a class="btn btn-small btn-quiet" href="/domande/cerca">Azzera</a>
+      <button type="submit" class="btn btn-small btn-primary">Cerca</button>
+    </span>
+  </div>
+</form>
+
+<div class="toolbar">
+  <span class="search-total">{{ total | it_number }} {{ "domanda trovata" if total == 1 else "domande trovate" }}</span>
+  <label class="toggle">
+    <input type="checkbox" id="hide-answers" data-hide-answers> Nascondi risposte
+  </label>
+</div>
+
+{% if results %}
+<section class="panel">
+  <ul class="question-list search-results">
+    {% for question, segments in results %}
+    <li class="question-row">
+      <button type="button" class="answer-badge {{ 'true' if question.answer else 'false' }}"
+        title="Tocca per mostrare o nascondere">{{ "V" if question.answer else "F" }}</button>
+      <div class="question-row-body">
+        {% for path in question.figures %}{{ figure(path, "inline-figure") }}{% endfor %}
+        <div class="search-result-text">
+          <span>{% for segment in segments %}{% if segment.matched %}<mark>{{ segment.text }}</mark>{% else %}{{ segment.text }}{% endif %}{% endfor %}</span>
+          <small class="search-meta">
+            <a href="/domande/{{ question.topic.chapter.id }}">{{ question.topic.chapter.title }}</a>
+            &middot; Quesito {{ question.topic_id }} &middot; Domanda {{ question.id }}
+          </small>
+        </div>
+      </div>
+      <div class="question-row-tools">
+        {{ seen_toggle(question) }}
+        {{ level_control(question) }}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pagine dei risultati">
+  {% if page > 1 %}<a class="btn btn-small" href="{{ request.url.include_query_params(page=page - 1) }}">&larr; Precedenti</a>{% endif %}
+  <span class="picker-count">Pagina {{ page }} di {{ pages }}</span>
+  {% if page < pages %}<a class="btn btn-small" href="{{ request.url.include_query_params(page=page + 1) }}">Successive &rarr;</a>{% endif %}
+</nav>
+{% endif %}
+{% elif not error %}
+<p class="empty">Nessuna domanda corrisponde ai filtri scelti.</p>
+{% endif %}
+{% endblock %}

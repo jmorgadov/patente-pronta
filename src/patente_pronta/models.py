@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
@@ -15,6 +16,7 @@ class Level(StrEnum):
 
 class Pool(StrEnum):
     ALL = "all"
+    SEEN = "seen"
     UNSEEN = "unseen"
     WRONG = "wrong"
 
@@ -102,6 +104,15 @@ class AttemptAnswer(SQLModel, table=True):
     @property
     def is_correct(self) -> bool:
         return not self.revealed and self.given == self.question.answer
+
+
+@dataclass(frozen=True, slots=True)
+class QuestionFilter:
+    number: int | None
+    chapter_id: int | None
+    answer: bool | None
+    levels: list[Level]
+    pool: Pool
 
 
 class ExamSettings(BaseModel):

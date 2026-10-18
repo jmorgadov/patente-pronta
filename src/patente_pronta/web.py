@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ValidationError
 from sqlmodel import Session
 
-from patente_pronta import store
+from patente_pronta import search, store
 from patente_pronta.errors import NotEnoughQuestionsError
 from patente_pronta.models import (
     AnswerIn,
@@ -20,8 +20,10 @@ from patente_pronta.models import (
     LevelIn,
     LevelOut,
     Mode,
+    Pool,
     PracticeSettings,
     Question,
+    QuestionFilter,
     RevealIn,
     SeenState,
 )
@@ -32,6 +34,14 @@ LEVEL_LABELS = {Level.EASY: "Facile", Level.MEDIUM: "Media", Level.HARD: "Diffic
 EXAM_SETTINGS_COOKIE = "exam_settings"
 PRACTICE_SETTINGS_COOKIE = "practice_settings"
 SETTINGS_MAX_AGE = 365 * 24 * 60 * 60
+SEARCH_PAGE_SIZE = 50
+POOL_LABELS = {
+    Pool.ALL: "Tutte",
+    Pool.SEEN: "Viste",
+    Pool.UNSEEN: "Non viste",
+    Pool.WRONG: "Sbagliate",
+}
+ANSWER_FILTERS = {"": "Tutte", "true": "Vero", "false": "Falso"}
 DEFAULT_EXAM_SETTINGS = ExamSettings(levels=list(Level), unseen_only=False)
 DEFAULT_PRACTICE_SETTINGS = PracticeSettings(
     levels=list(Level), chapters=None, count=30, unseen_only=False, instant_feedback=True
@@ -243,6 +253,39 @@ def questions_index(request: Request, session: SessionDep) -> HTMLResponse:
     )
 
 
+@router.get("/domande/cerca", response_class=HTMLResponse)
+def questions_search(
+    request: Request,
+    session: SessionDep,
+    levels: Annotated[list[Level], Query(alias="level", default_factory=list)],
+    text: Annotated[str, Query(alias="q")] = "",
+    number: Annotated[str, Query(alias="id")] = "",
+    chapter: Annotated[str, Query(pattern=r"^\d*$")] = "",
+    answer: Annotated[str, Query(pattern="^(|true|false)$")] = "",
+    pool: Pool = Pool.ALL,
+    page: Annotated[int, Query(ge=1)] = 1,
+) -> HTMLResponse:
+    number = number.strip()
+    if number and not number.isdigit():
+        return _questions_search(request, session, "L'ID deve essere un numero", [], page)
+    question_filter = QuestionFilter(
+        number=int(number) if number else None,
+        chapter_id=int(chapter) if chapter else None,
+        answer={"true": True, "false": False}.get(answer),
+        levels=levels,
+        pool=pool,
+    )
+    questions = {
+        question.id: question for question in store.filtered_questions(session, question_filter)
+    }
+    ranking = search.rank({qid: question.text for qid, question in questions.items()}, text)
+    results = [
+        (questions[qid], search.highlight(questions[qid].text, ranking.matched_words))
+        for qid in ranking.ids
+    ]
+    return _questions_search(request, session, None, results, page)
+
+
 @router.get("/domande/{chapter_id}", response_class=HTMLResponse)
 def questions_chapter(
     request: Request,
@@ -297,6 +340,37 @@ def question_set_seen(session: SessionDep, question_id: int, body: SeenState) ->
         return SeenState(seen=store.set_seen(session, question_id, body.seen).seen)
     except LookupError as err:
         raise HTTPException(status_code=404, detail=str(err)) from err
+
+
+def _questions_search(
+    request: Request,
+    session: Session,
+    error: str | None,
+    results: list[tuple[Question, list[search.Segment]]],
+    page: int,
+) -> HTMLResponse:
+    pages = max(1, -(-len(results) // SEARCH_PAGE_SIZE))
+    start = (min(page, pages) - 1) * SEARCH_PAGE_SIZE
+    params = request.query_params
+    context: dict[str, Any] = {
+        "chapters": store.chapters(session),
+        "text": params.get("q", ""),
+        "number": params.get("id", ""),
+        "chapter_id": params.get("chapter", ""),
+        "answer": params.get("answer", ""),
+        "selected_levels": params.getlist("level"),
+        "pool": params.get("pool", Pool.ALL),
+        "pool_labels": POOL_LABELS,
+        "answer_filters": ANSWER_FILTERS,
+        "error": error,
+        "total": len(results),
+        "results": results[start : start + SEARCH_PAGE_SIZE],
+        "page": min(page, pages),
+        "pages": pages,
+    }
+    return templates.TemplateResponse(
+        request, "questions_search.html", context, status_code=400 if error else 200
+    )
 
 
 def _exam_setup(

@@ -860,6 +860,34 @@ h3 { font-size: 1.1rem; }
 .answer-badge.false { background: var(--ko-soft); color: var(--ko); }
 .answers-hidden .answer-badge:not(.peek) { background: var(--sunken); color: transparent; }
 
+.quick-search, .search-form { margin: 0; }
+.quick-search { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.quick-search input { flex: 1 1 16rem; }
+.quick-search input, .search-field input, .search-field select {
+  min-height: 2.4rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  min-width: 0;
+}
+.quick-search input:focus, .search-field input:focus, .search-field select:focus { border-color: var(--accent); outline: none; }
+.search-form { display: flex; flex-direction: column; gap: 1rem; }
+.search-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.75rem 1rem; }
+.search-field { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.search-text { grid-column: span 2; }
+.search-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.search-buttons { display: flex; gap: 0.5rem; margin-left: auto; }
+.search-total { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.search-results .question-row:first-child { border-top: 0; padding-top: 0; }
+.search-result-text { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.search-result-text mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 0.1em; }
+.search-meta { color: var(--muted); font-size: 0.82rem; }
+.search-meta a { color: inherit; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; }
+
 /* ---------- History ---------- */
 
 .chart-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; margin: 0; padding: 0; list-style: none; color: var(--ink-2); font-size: 0.9rem; }
@@ -938,6 +966,7 @@ h3 { font-size: 1.1rem; }
   .question-row { grid-template-columns: auto minmax(0, 1fr); }
   .question-row-tools { grid-column: 2; }
   .setting-row { grid-template-columns: minmax(0, 1fr); }
+  .search-text { grid-column: auto; }
   .chart svg { height: 240px; }
 }
 
