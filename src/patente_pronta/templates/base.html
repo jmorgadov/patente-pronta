@@ -30,5 +30,16 @@
   <main class="page">
     {% block content %}{% endblock %}
   </main>
+  <dialog class="lightbox" data-lightbox aria-label="Figura ingrandita">
+    <div class="lightbox-stage">
+      <img class="lightbox-image" alt="" draggable="false">
+    </div>
+    <div class="lightbox-tools">
+      <button type="button" class="lightbox-btn" data-zoom-step="-1" aria-label="Riduci" title="Riduci">&minus;</button>
+      <button type="button" class="lightbox-btn" data-zoom-reset aria-label="Adatta allo schermo" title="Adatta allo schermo">&#8634;</button>
+      <button type="button" class="lightbox-btn" data-zoom-step="1" aria-label="Ingrandisci" title="Ingrandisci">+</button>
+      <button type="button" class="lightbox-btn" data-lightbox-close aria-label="Chiudi" title="Chiudi">&times;</button>
+    </div>
+  </dialog>
 </body>
 </html>

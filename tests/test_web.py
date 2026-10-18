@@ -334,6 +334,13 @@ def test_chapter_page_shows_shared_figures_once_and_single_ones_inline(client: T
     assert "Capitolo 1; titolo completo" in page
 
 
+def test_chapter_page_figures_open_in_lightbox(client: TestClient) -> None:
+    page = client.get("/domande/1").text
+
+    assert page.count("data-zoomable") == 10
+    assert page.count('<dialog class="lightbox"') == 1
+
+
 def test_practice_page_names_chapter_and_quesito(client: TestClient, app: FastAPI) -> None:
     attempt_id = _start_practice(client, ALL_LEVELS, [1], 1)
     topic_id = _attempt(app, attempt_id, Mode.PRACTICE).answers[0].question.topic_id
