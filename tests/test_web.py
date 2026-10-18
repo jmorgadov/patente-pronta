@@ -11,6 +11,7 @@ from conftest import Clock
 from patente_pronta import store
 from patente_pronta.models import Attempt, Level, Mode, Question
 from patente_pronta.quiz import EXAM_SIZE
+from patente_pronta.web import SEARCH_PAGE_SIZE
 
 ALL_LEVELS = [level.value for level in Level]
 QUESTION_ID = 40010
@@ -334,6 +335,13 @@ def test_chapter_page_shows_shared_figures_once_and_single_ones_inline(client: T
     assert "Capitolo 1; titolo completo" in page
 
 
+def test_chapter_page_figures_open_in_lightbox(client: TestClient) -> None:
+    page = client.get("/domande/1").text
+
+    assert page.count("data-zoomable") == 10
+    assert page.count('<dialog class="lightbox"') == 1
+
+
 def test_practice_page_names_chapter_and_quesito(client: TestClient, app: FastAPI) -> None:
     attempt_id = _start_practice(client, ALL_LEVELS, [1], 1)
     topic_id = _attempt(app, attempt_id, Mode.PRACTICE).answers[0].question.topic_id
@@ -598,6 +606,101 @@ def test_exam_setup_shows_level_totals(client: TestClient) -> None:
     page = client.get("/esame").text
 
     assert "<small>10</small>" in page
+
+
+@pytest.mark.parametrize(
+    ("params", "found"),
+    [
+        ({}, 160),
+        ({"q": "true"}, 80),
+        ({"q": "fasle"}, 80),
+        ({"id": "4001"}, 4),
+        ({"id": " 40012 "}, 1),
+        ({"chapter": "2"}, 40),
+        ({"answer": "false"}, 80),
+        ({"level": "hard"}, 10),
+        ({"level": ["easy", "medium"]}, 150),
+        ({"chapter": "1", "answer": "false", "level": "hard"}, 10),
+        ({"chapter": "2", "level": "hard"}, 0),
+        ({"pool": "unseen"}, 160),
+        ({"pool": "seen"}, 0),
+    ],
+)
+def test_question_search_filters(client: TestClient, params: dict[str, Any], found: int) -> None:
+    page = client.get("/domande/cerca", params=params).text
+
+    assert f">{found} domand" in page
+    assert page.count('class="question-row"') == min(found, SEARCH_PAGE_SIZE)
+
+
+def test_question_search_finds_seen_and_wrong_questions(client: TestClient, app: FastAPI) -> None:
+    client.post(f"/api/questions/{QUESTION_ID}/seen", json={"seen": True})
+    attempt_id = _start_practice(client, ALL_LEVELS, [1], 1)
+    item = _attempt(app, attempt_id, Mode.PRACTICE).answers[0]
+    _answer(client, f"/esercitazione/{attempt_id}/risposte", 1, not item.question.answer)
+
+    seen = client.get("/domande/cerca", params={"pool": "seen"}).text
+    wrong = client.get("/domande/cerca", params={"pool": "wrong"}).text
+
+    assert seen.count('class="question-row"') == len({QUESTION_ID, item.question_id})
+    assert wrong.count('class="question-row"') == 1
+    assert f"Domanda {item.question_id}" in wrong
+
+
+def test_question_search_ranks_and_highlights_matches(client: TestClient) -> None:
+    page = client.get("/domande/cerca", params={"q": "4001 true"}).text
+
+    assert page.count('class="question-row"') == 2
+    assert "<mark>4001</mark> <mark>true</mark> A" in page
+    assert page.index("Domanda 40010") < page.index("Domanda 40011")
+    assert 'href="/domande/1"' in page
+
+
+def test_question_search_paginates(client: TestClient) -> None:
+    second = client.get("/domande/cerca", params={"q": "true", "page": "2"}).text
+    beyond = client.get("/domande/cerca", params={"q": "true", "page": "9"}).text
+
+    assert second.count('class="question-row"') == 80 - SEARCH_PAGE_SIZE
+    assert "Pagina 2 di 2" in second
+    assert "page=1" in second
+    assert "Pagina 2 di 2" in beyond
+
+
+def test_question_search_keeps_the_chosen_filters(client: TestClient) -> None:
+    params = {"q": "true", "id": "4001", "chapter": "1", "answer": "true", "pool": "unseen"}
+
+    page = client.get("/domande/cerca", params=params | {"level": "easy"}).text
+
+    assert 'value="true"' in page
+    assert 'value="4001"' in page
+    assert '<option value="1" selected>' in page
+    assert '<option value="true" selected>Vero' in page
+    assert '<option value="unseen" selected>' in page
+    assert 'name="level" value="easy" checked' in page
+
+
+@pytest.mark.parametrize(
+    ("params", "status"),
+    [({"id": "abc"}, 400), ({"chapter": "x"}, 422), ({"answer": "maybe"}, 422)],
+)
+def test_question_search_rejects_bad_filters(
+    client: TestClient, params: dict[str, str], status: int
+) -> None:
+    response = client.get("/domande/cerca", params=params)
+
+    assert response.status_code == status
+
+
+def test_question_search_reports_a_non_numeric_id(client: TestClient) -> None:
+    page = client.get("/domande/cerca", params={"id": "abc"}).text
+
+    assert "L&#39;ID deve essere un numero" in page
+
+
+def test_questions_index_links_to_search(client: TestClient) -> None:
+    page = client.get("/domande").text
+
+    assert 'action="/domande/cerca"' in page
 
 
 def _start_exam(client: TestClient, levels: list[str]) -> int:

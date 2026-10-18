@@ -15,6 +15,7 @@ from patente_pronta.models import (
     Mode,
     Pool,
     Question,
+    QuestionFilter,
     Topic,
 )
 from patente_pronta.quiz import EXAM_DURATION, Candidate, draw_exam, draw_practice
@@ -166,6 +167,16 @@ def level_counts_by_chapter(session: Session) -> dict[int, dict[Level, int]]:
     return counts
 
 
+def filtered_questions(session: Session, question_filter: QuestionFilter) -> Sequence[Question]:
+    return session.exec(
+        select(Question)
+        .join(Topic)
+        .where(*_filtered(question_filter))
+        .order_by(col(Question.id))
+        .options(selectinload(Question.topic).selectinload(Topic.chapter))  # type: ignore[arg-type]
+    ).all()
+
+
 def completed_attempts(session: Session) -> list[Attempt]:
     attempts = session.exec(
         select(Attempt)
@@ -185,15 +196,33 @@ def seen_totals(session: Session) -> dict[Level, int]:
 
 
 def _drawable(levels: Sequence[Level], pool: Pool) -> list[ColumnElement[bool]]:
-    conditions: list[ColumnElement[bool]] = [col(Question.level).in_(levels)]
-    match pool:
-        case Pool.UNSEEN:
-            conditions.append(col(Question.seen).is_(False))
-        case Pool.WRONG:
-            conditions.append(col(Question.id).in_(_last_answered_wrong()))
-        case Pool.ALL:
-            pass
+    return [col(Question.level).in_(levels), *_in_pool(pool)]
+
+
+def _filtered(question_filter: QuestionFilter) -> list[ColumnElement[bool]]:
+    conditions = _in_pool(question_filter.pool)
+    if question_filter.number is not None:
+        number = question_filter.number
+        conditions.append(or_(col(Question.id) == number, col(Question.topic_id) == number))
+    if question_filter.chapter_id is not None:
+        conditions.append(col(Topic.chapter_id) == question_filter.chapter_id)
+    if question_filter.answer is not None:
+        conditions.append(col(Question.answer).is_(question_filter.answer))
+    if question_filter.levels:
+        conditions.append(col(Question.level).in_(question_filter.levels))
     return conditions
+
+
+def _in_pool(pool: Pool) -> list[ColumnElement[bool]]:
+    match pool:
+        case Pool.SEEN:
+            return [col(Question.seen).is_(True)]
+        case Pool.UNSEEN:
+            return [col(Question.seen).is_(False)]
+        case Pool.WRONG:
+            return [col(Question.id).in_(_last_answered_wrong())]
+        case Pool.ALL:
+            return []
 
 
 def _last_answered_wrong() -> SelectOfScalar[int]:

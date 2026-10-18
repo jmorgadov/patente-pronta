@@ -15,7 +15,8 @@
 {%- endmacro %}
 
 {% macro figure(path, class_name) -%}
-<img class="{{ class_name }}" src="/{{ path }}" alt="Figura della domanda" loading="lazy">
+<img class="{{ class_name }}" src="/{{ path }}" alt="Figura della domanda" loading="lazy"
+  data-zoomable tabindex="0" role="button" title="Ingrandisci la figura">
 {%- endmacro %}
 
 {% macro answer_label(value) -%}
