@@ -49,6 +49,9 @@
 - **Esercitazione**: untimed practice on the chapters you choose. Answer and
   get instant feedback, or reveal the answer, then it moves on by itself after a couple of
   seconds.
+- **Illimitata**: endless questions with instant feedback. A question you get wrong comes
+  back about 5, 15 and 35 questions later until it sticks, and a live panel shows your
+  average, your best streak of correct answers and your score over the last 30 questions.
 - **Your own difficulty levels**: every question starts as *Facile*, *Media* or *Difficile*,
   a level assigned with AI for someone almost ready for the exam. You can change a level
   with one tap anywhere: in the list, during practice or when reviewing an exam. Exams and
@@ -57,9 +60,9 @@
   "hide answers" switch turns the list into self-test flashcards. A search page finds
   questions by fuzzy text, question or quesito number, chapter, answer, level and status
   (seen, not seen, wrong).
-- **Storico**: a progress chart with one line for exams and one for practice, plus every
-  completed session with its full review. A practice only counts once you reach the last
-  question.
+- **Storico**: a progress chart with one line each for exams, practice and unlimited
+  practice, plus every completed session with its full review. A practice only counts once
+  you reach the last question; an unlimited practice counts once you end it.
 - **Keyboard first**: `V` / `F` to answer, `R` to reveal, `Enter` to move on, `←` `→` to
   navigate.
 - Works on a phone, follows your system's light or dark theme, and keeps everything in a
@@ -85,14 +88,14 @@ database.
 
 ## How it works
 
-| | Esame | Esercitazione |
-|---|---|---|
-| Questions | 30, one per topic | as many as you want (default 30) |
-| Time | 20 minutes, then it submits itself | none |
-| Filters | levels | levels and chapters |
-| Feedback | at the end, with a full review | right after each answer |
-| Counts in the history | always | only when every question is answered or revealed |
-| Passed with | at least 27 correct | — |
+| | Esame | Esercitazione | Illimitata |
+|---|---|---|---|
+| Questions | 30, one per topic | as many as you want (default 30) | endless; wrong ones come back |
+| Time | 20 minutes, then it submits itself | none | none |
+| Filters | levels | levels and chapters | levels and chapters |
+| Feedback | at the end, with a full review | right after each answer | right after each answer |
+| Counts in the history | always | only when every question is answered or revealed | when you end it with at least one answer |
+| Passed with | at least 27 correct | — | — |
 
 A revealed answer in practice counts as done but not correct, so the progress chart reflects
 what you actually knew.
@@ -135,16 +138,19 @@ regenerate the JSON from the PDF with `scripts/extract_quiz.py`.
 ## Study guides
 
 Short summaries in Italian, built from the questions in `quiz.json` and completed, where the
-quiz is silent, with the Codice della Strada (each guide says which is which):
+quiz is silent, with the Codice della Strada (each guide says which is which). The app shows
+them under **Guide**; the Markdown sources are the ones linked here:
 
-- [Limiti di velocità](guides/limiti-di-velocita.md): speed limits by vehicle and road type,
+- [Limiti di velocità](src/patente_pronta/guides/limiti-di-velocita.md): speed limits by vehicle and road type,
   including rain, fog and signed exceptions.
-- [Distanza di sicurezza](guides/distanza-di-sicurezza.md): reaction, braking and stopping
+- [Distanza di sicurezza](src/patente_pronta/guides/distanza-di-sicurezza.md): reaction, braking and stopping
   distances, and what they depend on.
-- [Patenti A e B](guides/patenti.md): what each licence category lets you drive, the minimum
+- [Patenti A e B](src/patente_pronta/guides/patenti.md): what each licence category lets you drive, the minimum
   ages, trailers and how long a licence is valid.
-- [Sanzioni sulla patente](guides/sanzioni-patente.md): points, ritiro, sospensione,
+- [Sanzioni sulla patente](src/patente_pronta/guides/sanzioni-patente.md): points, ritiro, sospensione,
   revisione and revoca for each violation.
+- [Spie del cruscotto](src/patente_pronta/guides/spie.md): each dashboard warning light with
+  its symbol, colour and meaning, and the true/false statements about it.
 
 ## Project layout
 
@@ -153,11 +159,13 @@ src/patente_pronta/
 ├── main.py        app factory: database, static files, routes
 ├── web.py         pages and JSON endpoints (FastAPI + Jinja2)
 ├── store.py       database queries and quiz lifecycle
-├── quiz.py        exam and practice rules (drawing, pass mark, timer)
+├── quiz.py        quiz rules (drawing, pass mark, timer, re-asks, streaks)
 ├── search.py      fuzzy text search over the questions
+├── guides.py      renders the study guides from Markdown
 ├── bank.py        loads quiz.json into SQLite
 ├── models.py      SQLModel tables and API schemas
 ├── settings.py    DATA_DIR / DB_PATH from the environment
+├── guides/        study guides (Markdown, shown at /guide)
 ├── templates/     server-rendered pages
 └── static/        CSS, a little vanilla JS, the logo
 scripts/

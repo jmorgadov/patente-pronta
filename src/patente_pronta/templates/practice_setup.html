@@ -1,12 +1,11 @@
 {% extends "base.html" %}
-{% from "macros.html" import level_toggles, error_box, unseen_toggle, start_button %}
+{% from "macros.html" import level_toggles, error_box, pool_toggles, chapter_picker, start_button %}
 {% block title %}Esercitazione &middot; Patente Pronta{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>Nuova esercitazione</h1>
 </div>
 
-{% set chosen = chapters | length if selected_chapters is none else selected_chapters | length %}
 <form method="post" action="/esercitazione" class="setup">
   {{ error_box(error) }}
   <section class="settings">
@@ -25,16 +24,7 @@
       </div>
     </div>
 
-    <div class="setting-row" role="group" aria-labelledby="filters-label">
-      <span class="setting-label" id="filters-label">Filtri</span>
-      <div class="toggle-row">
-        {{ unseen_toggle(unseen_only and not wrong_only) }}
-        <label class="toggle" title="Domande la cui ultima risposta è stata sbagliata o rivelata">
-          <input type="checkbox" name="wrong_only" value="true" data-excludes="unseen_only" {% if wrong_only %}checked{% endif %}>
-          Solo domande sbagliate
-        </label>
-      </div>
-    </div>
+    {{ pool_toggles(unseen_only, wrong_only) }}
 
     <div class="setting-row" role="group" aria-labelledby="answers-label">
       <span class="setting-label" id="answers-label">Risposte</span>
@@ -46,25 +36,7 @@
       </div>
     </div>
 
-    <details class="chapter-picker" {% if chosen < chapters | length %}open{% endif %}>
-      <summary>
-        <span class="setting-label">Capitoli</span>
-        <span class="picker-count" data-chapters-count>{{ chosen }}/{{ chapters | length }}</span>
-      </summary>
-      <div class="picker-actions">
-        <button type="button" class="btn btn-small" data-chapters-all>Seleziona tutti</button>
-        <button type="button" class="btn btn-small btn-quiet" data-chapters-none>Nessuno</button>
-      </div>
-      <div class="chapter-options">
-        {% for chapter in chapters %}
-        <label class="chapter-option" title="{{ chapter.full_title }}">
-          <input type="checkbox" name="chapter" value="{{ chapter.id }}"
-            {% if selected_chapters is none or chapter.id in selected_chapters %}checked{% endif %}>
-          {{ chapter.title }}
-        </label>
-        {% endfor %}
-      </div>
-    </details>
+    {{ chapter_picker(chapters, selected_chapters) }}
   </section>
 
   <div class="setup-actions setup-actions-sticky">

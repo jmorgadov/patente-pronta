@@ -22,6 +22,7 @@
     <ul class="chart-legend">
       <li><span class="line-key key-exam"></span>Esame</li>
       <li><span class="line-key key-practice"></span>Esercitazione</li>
+      <li><span class="line-key key-unlimited"></span>Illimitata</li>
       <li><span class="line-key key-threshold"></span>Soglia esame ({{ EXAM_PASS_MARK }}/{{ EXAM_SIZE }})</li>
     </ul>
   </div>
@@ -42,7 +43,7 @@
       {% set is_exam = point.mode == "exam" %}
       <tr>
         <td class="num">{{ point.date }}</td>
-        <td><span class="line-key {{ 'key-exam' if is_exam else 'key-practice' }}"></span> {{ "Esame" if is_exam else "Esercitazione" }}</td>
+        <td><span class="line-key key-{{ point.mode }}"></span> {{ MODE_LABELS[point.mode] }}</td>
         <td>{{ level_split(point.level_counts, point.total) }}</td>
         <td class="num">{{ point.correct }}/{{ point.total }}</td>
         <td class="num">{{ point.percent | round | int }}%</td>

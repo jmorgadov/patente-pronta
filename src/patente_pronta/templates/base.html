@@ -21,7 +21,7 @@
         <span>Patente <span class="brand-pronta">Pronta</span></span>
       </a>
       <nav class="site-nav" aria-label="Sezioni">
-        {% for href, label in [("/esame", "Esame"), ("/esercitazione", "Esercitazione"), ("/domande", "Domande"), ("/storico", "Storico")] %}
+        {% for href, label in [("/esame", "Esame"), ("/esercitazione", "Esercitazione"), ("/illimitata", "Illimitata"), ("/domande", "Domande"), ("/guide", "Guide"), ("/storico", "Storico")] %}
         <a href="{{ href }}" {% if path.startswith(href) %}aria-current="page"{% endif %}>{{ label }}</a>
         {% endfor %}
       </nav>
