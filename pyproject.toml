@@ -12,6 +12,7 @@ license = { text = "MIT" }
 dependencies = [
     "fastapi>=0.143.0",
     "jinja2>=3.1.6",
+    "markdown>=3.11.1",
     "python-multipart>=0.0.32",
     "sqlmodel>=0.0.48",
     "uvicorn>=0.54.0",
@@ -26,6 +27,7 @@ dev = [
     "ruff",
     "ebump",
     "httpx2>=2.13.1",
+    "types-markdown>=3.10.2.20261007",
 ]
 
 

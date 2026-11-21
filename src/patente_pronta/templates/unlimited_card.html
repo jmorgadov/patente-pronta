@@ -1,0 +1,30 @@
+{% from "macros.html" import figure, level_control %}
+{% set question = item.question %}
+<article class="question-card{% if question.figures %} has-figure{% endif %}" data-position="{{ item.position }}"
+  data-answer="{{ 'true' if question.answer else 'false' }}">
+  {% if question.figures %}<div class="figure-frame">{% for path in question.figures %}{{ figure(path, "question-figure") }}{% endfor %}</div>{% endif %}
+  <div class="question-main">
+    <div class="question-head">
+      <p class="question-number">Domanda {{ item.position }}
+        {% if reask %}<span class="pill pill-neutral reask-pill" title="L'hai sbagliata poco fa">Da ripassare</span>{% endif %}</p>
+      {% if show_level %}{{ level_control(question) }}{% endif %}
+    </div>
+    <p class="question-text">{{ question.text }}</p>
+    <div class="answer-buttons">
+      <button type="button" class="answer-btn" data-value="true">Vero <span class="kbd">V</span></button>
+      <button type="button" class="answer-btn" data-value="false">Falso <span class="kbd">F</span></button>
+    </div>
+    <div class="reveal-row" data-reveal-row>
+      <button type="button" class="btn btn-small btn-quiet" data-reveal>Mostra la risposta <span class="kbd">R</span></button>
+    </div>
+    <div class="feedback" data-feedback hidden>
+      <div>
+        <p class="feedback-title" data-feedback-title></p>
+        <p class="feedback-detail" data-feedback-detail></p>
+      </div>
+      <button type="button" class="btn btn-small" data-advance>Avanti <span class="kbd">&crarr;</span></button>
+      <span class="advance-bar" data-advance-bar></span>
+    </div>
+    <p class="question-topic">{{ question.topic.chapter.title }} &middot; Quesito {{ question.topic.id }}</p>
+  </div>
+</article>

@@ -1,18 +1,22 @@
 {% extends "base.html" %}
-{% from "macros.html" import figure, level_control, answer_label %}
+{% from "macros.html" import figure, level_control, answer_label, run_stats %}
 {% block title %}Risultato &middot; Patente Pronta{% endblock %}
 {% block content %}
 {% set total = attempt.answers | length %}
 {% set is_exam = attempt.mode == "exam" %}
+{% set is_unlimited = attempt.mode == "unlimited" %}
+{% set setup_url = {"exam": "/esame", "practice": "/esercitazione", "unlimited": "/illimitata"}[attempt.mode] %}
 {% set to_review = answers | rejectattr("is_correct") | list %}
 {% set right = answers | selectattr("is_correct") | list %}
 
 <section class="panel result {% if is_exam %}{{ 'passed' if passed else 'failed' }}{% endif %}">
   <div class="result-score">{{ correct }}<small>/{{ total }}</small></div>
   <div class="result-body">
-    <p class="eyebrow">{{ "Esame" if is_exam else "Esercitazione" }} &middot; {{ attempt.finished_at.astimezone().strftime("%d/%m/%Y %H:%M") }}</p>
+    <p class="eyebrow">{{ MODE_LABELS[attempt.mode] }} &middot; {{ attempt.finished_at.astimezone().strftime("%d/%m/%Y %H:%M") }}</p>
     {% if is_exam %}
     <h1>{{ "Promosso!" if passed else "Bocciato" }}</h1>
+    {% elif is_unlimited %}
+    <h1>Esercitazione illimitata terminata</h1>
     {% elif attempt.is_complete %}
     <h1>Esercitazione completata</h1>
     {% else %}
@@ -28,10 +32,12 @@
     {% endif %}
   </div>
   <div class="result-actions">
-    <a class="btn btn-primary" href="{{ '/esame' if is_exam else '/esercitazione' }}">{{ "Nuovo esame" if is_exam else "Nuova esercitazione" }}</a>
+    <a class="btn btn-primary" href="{{ setup_url }}">{{ "Nuovo esame" if is_exam else "Ricomincia" if is_unlimited else "Nuova esercitazione" }}</a>
     <a class="btn" href="/storico">Vai allo storico</a>
   </div>
 </section>
+
+{% if stats %}{{ run_stats(stats) }}{% endif %}
 
 {% macro review_items(items) -%}
 <ol class="panel review-list">

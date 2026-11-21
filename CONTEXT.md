@@ -66,19 +66,39 @@ A Question whose most recent answer, in any Attempt, was wrong or a Reveal. Answ
 correctly later makes it no longer wrong. A Practice can be limited to Wrong Questions; that
 replaces the limit to Questions not seen yet, since every Wrong Question has been seen.
 
+**Unlimited Practice**:
+A Practice with no fixed number of Questions and always with Instant Feedback. It draws from
+the Questions matching its filters in random order and reshuffles once they have all been
+asked. Showing each Question's Level is optional. The learner ends it whenever they like.
+_Avoid_: Infinite mode, endless quiz
+
+**Re-ask**:
+A Question asked again in an Unlimited Practice because it was answered wrong or Revealed. It
+comes back three times at growing gaps (about 5, then 10, then 20 Questions apart); a wrong
+answer to a Re-ask starts the series over.
+_Avoid_: Retry, repeat
+
+**Streak**:
+A run of consecutive correct answers in an Unlimited Practice. Its live stats show the best
+Streak, the current one, the overall share of correct answers and the score over the last 30
+answers.
+
 **Level Filter**:
 The set of Levels a quiz draws its Questions from, chosen before it starts.
 
 **Chapter Filter**:
-The set of Chapters a Practice draws its Questions from.
+The set of Chapters a Practice or an Unlimited Practice draws its Questions from.
 
 **Attempt**:
-One Exam or Practice the learner started, with their answer to each Question.
+One Exam, Practice or Unlimited Practice the learner started, with their answer to each
+Question.
 _Avoid_: Session, run
 
 **Completed Attempt**:
-A submitted Exam, or a Practice in which every Question was answered or Revealed. Only
-Completed Attempts appear in the history and the progress chart.
+A submitted Exam, a Practice in which every Question was answered or Revealed, or an
+Unlimited Practice the learner ended after answering at least one Question (the Question left
+open is dropped; one ended with no answers is discarded). Only Completed Attempts appear in
+the history and the progress chart.
 
 **Interrupted Practice**:
 A Practice the learner ended before every Question was done. It is kept out of the history.

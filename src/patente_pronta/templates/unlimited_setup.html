@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "macros.html" import level_toggles, error_box, pool_toggles, chapter_picker, start_button %}
+{% block title %}Illimitata &middot; Patente Pronta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Esercitazione illimitata</h1>
+</div>
+<p class="muted setup-intro">Domande senza fine, con la risposta subito. Quelle sbagliate tornano qualche domanda dopo, finché non le fissi.</p>
+
+<form method="post" action="/illimitata" class="setup">
+  {{ error_box(error) }}
+  <section class="settings">
+    <div class="setting-row" role="group" aria-labelledby="levels-label">
+      <span class="setting-label" id="levels-label">Livelli</span>
+      {{ level_toggles(selected_levels, none) }}
+    </div>
+
+    {{ pool_toggles(unseen_only, wrong_only) }}
+
+    <div class="setting-row" role="group" aria-labelledby="display-label">
+      <span class="setting-label" id="display-label">Mostra</span>
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" name="show_level" value="true" {% if show_level %}checked{% endif %}>
+          Livello delle domande
+        </label>
+      </div>
+    </div>
+
+    {{ chapter_picker(chapters, selected_chapters) }}
+  </section>
+
+  <div class="setup-actions setup-actions-sticky">
+    {{ start_button("Inizia") }}
+  </div>
+</form>
+{% endblock %}

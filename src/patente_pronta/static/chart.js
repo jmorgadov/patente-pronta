@@ -4,6 +4,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const SERIES = [
   { mode: "exam", label: "Esame" },
   { mode: "practice", label: "Esercitazione" },
+  { mode: "unlimited", label: "Illimitata" },
 ];
 const MARGIN = { top: 16, right: 52, bottom: 34, left: 46 };
 const Y_TICKS = [0, 25, 50, 75, 100];

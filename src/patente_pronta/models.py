@@ -7,6 +7,8 @@ from pydantic import Field as PydanticField
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
+from patente_pronta.quiz import RunStats
+
 
 class Level(StrEnum):
     EASY = "easy"
@@ -24,6 +26,7 @@ class Pool(StrEnum):
 class Mode(StrEnum):
     EXAM = "exam"
     PRACTICE = "practice"
+    UNLIMITED = "unlimited"
 
 
 class Chapter(SQLModel, table=True):
@@ -106,6 +109,35 @@ class AttemptAnswer(SQLModel, table=True):
         return not self.revealed and self.given == self.question.answer
 
 
+class UnlimitedRun(SQLModel, table=True):
+    attempt_id: int = Field(foreign_key="attempt.id", primary_key=True)
+    show_level: bool
+    order: list[int] = Field(sa_column=Column(JSON, nullable=False))
+    cursor: int
+
+
+class Reask(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    attempt_id: int = Field(foreign_key="attempt.id", index=True)
+    question_id: int = Field(foreign_key="question.id")
+    step: int
+    due: int
+    asked_at: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class GuideLink:
+    slug: str
+    title: str
+
+
+@dataclass(frozen=True, slots=True)
+class Guide:
+    slug: str
+    title: str
+    html: str
+
+
 @dataclass(frozen=True, slots=True)
 class QuestionFilter:
     number: int | None
@@ -124,19 +156,32 @@ class ExamSettings(BaseModel):
         return Pool.UNSEEN if self.unseen_only else Pool.ALL
 
 
-class PracticeSettings(BaseModel):
+class DrawSettings(BaseModel):
     levels: list[Level]
     chapters: list[int] | None
-    count: int = PydanticField(ge=1, le=1000)
     unseen_only: bool
     wrong_only: bool = False
-    instant_feedback: bool
 
     @property
     def pool(self) -> Pool:
         if self.wrong_only:
             return Pool.WRONG
         return Pool.UNSEEN if self.unseen_only else Pool.ALL
+
+
+class PracticeSettings(DrawSettings):
+    count: int = PydanticField(ge=1, le=1000)
+    instant_feedback: bool
+
+
+class UnlimitedSettings(DrawSettings):
+    show_level: bool
+
+
+class UnlimitedNext(BaseModel):
+    card: str
+    stats: RunStats
+    stats_html: str
 
 
 class RevealIn(BaseModel):

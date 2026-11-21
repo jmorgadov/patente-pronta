@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ guide.title }} &middot; Patente Pronta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <p class="eyebrow"><a href="/guide">Guide</a></p>
+  <h1>{{ guide.title }}</h1>
+</div>
+<article class="panel prose">
+  {{ guide.html | safe }}
+</article>
+{% endblock %}

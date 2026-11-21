@@ -10,11 +10,12 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ValidationError
 from sqlmodel import Session
 
-from patente_pronta import search, store
+from patente_pronta import guides, search, store
 from patente_pronta.errors import NotEnoughQuestionsError
 from patente_pronta.models import (
     AnswerIn,
     Attempt,
+    AttemptAnswer,
     ExamSettings,
     Level,
     LevelIn,
@@ -26,13 +27,17 @@ from patente_pronta.models import (
     QuestionFilter,
     RevealIn,
     SeenState,
+    UnlimitedNext,
+    UnlimitedSettings,
 )
-from patente_pronta.quiz import EXAM_DURATION, EXAM_PASS_MARK, EXAM_SIZE, is_passed
+from patente_pronta.quiz import EXAM_DURATION, EXAM_PASS_MARK, EXAM_SIZE, RECENT_WINDOW, is_passed
 
 PACKAGE_DIR = Path(__file__).parent
 LEVEL_LABELS = {Level.EASY: "Facile", Level.MEDIUM: "Media", Level.HARD: "Difficile"}
+MODE_LABELS = {Mode.EXAM: "Esame", Mode.PRACTICE: "Esercitazione", Mode.UNLIMITED: "Illimitata"}
 EXAM_SETTINGS_COOKIE = "exam_settings"
 PRACTICE_SETTINGS_COOKIE = "practice_settings"
+UNLIMITED_SETTINGS_COOKIE = "unlimited_settings"
 SETTINGS_MAX_AGE = 365 * 24 * 60 * 60
 SEARCH_PAGE_SIZE = 50
 POOL_LABELS = {
@@ -46,11 +51,16 @@ DEFAULT_EXAM_SETTINGS = ExamSettings(levels=list(Level), unseen_only=False)
 DEFAULT_PRACTICE_SETTINGS = PracticeSettings(
     levels=list(Level), chapters=None, count=30, unseen_only=False, instant_feedback=True
 )
+DEFAULT_UNLIMITED_SETTINGS = UnlimitedSettings(
+    levels=list(Level), chapters=None, unseen_only=False, show_level=True
+)
 
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
 templates.env.globals.update(
     LEVELS=list(Level),
     LEVEL_LABELS=LEVEL_LABELS,
+    MODE_LABELS=MODE_LABELS,
+    RECENT_WINDOW=RECENT_WINDOW,
     EXAM_SIZE=EXAM_SIZE,
     EXAM_PASS_MARK=EXAM_PASS_MARK,
     EXAM_MINUTES=int(EXAM_DURATION.total_seconds() // 60),
@@ -188,12 +198,8 @@ def practice_start(
         wrong_only=wrong_only,
         instant_feedback=instant_feedback,
     )
-    error = None
-    if not levels:
-        error = "Seleziona almeno un livello"
-    elif not chapters:
-        error = "Seleziona almeno un capitolo"
-    else:
+    error = _draw_error(levels, chapters)
+    if error is None:
         try:
             attempt = store.start_practice(
                 session, levels, chapters, count, settings.pool, instant_feedback, rng, now
@@ -241,6 +247,106 @@ def practice_summary(request: Request, session: SessionDep, attempt_id: int) -> 
     attempt = _attempt(session, attempt_id, Mode.PRACTICE)
     if attempt.finished_at is None:
         return RedirectResponse(f"/esercitazione/{attempt_id}", status_code=303)
+    return _review(request, attempt)
+
+
+@router.get("/illimitata", response_class=HTMLResponse)
+def unlimited_setup(request: Request, session: SessionDep) -> HTMLResponse:
+    settings = _saved(
+        request, UNLIMITED_SETTINGS_COOKIE, UnlimitedSettings, DEFAULT_UNLIMITED_SETTINGS
+    )
+    return _unlimited_setup(request, session, settings, None)
+
+
+@router.post("/illimitata", response_model=None)
+def unlimited_start(
+    request: Request,
+    session: SessionDep,
+    rng: RngDep,
+    now: NowDep,
+    levels: LevelsForm,
+    chapters: Annotated[list[int], Form(alias="chapter", default_factory=list)],
+    unseen_only: CheckboxForm,
+    wrong_only: CheckboxForm,
+    show_level: CheckboxForm,
+) -> Response:
+    settings = UnlimitedSettings(
+        levels=levels,
+        chapters=chapters,
+        unseen_only=unseen_only and not wrong_only,
+        wrong_only=wrong_only,
+        show_level=show_level,
+    )
+    error = _draw_error(levels, chapters)
+    if error is None:
+        try:
+            attempt = store.start_unlimited(
+                session, levels, chapters, settings.pool, show_level, rng, now
+            )
+        except NotEnoughQuestionsError as err:
+            error = str(err)
+        else:
+            url = f"/illimitata/{attempt.id}"
+            return _redirect_saving(url, UNLIMITED_SETTINGS_COOKIE, settings)
+    return _unlimited_setup(request, session, settings, error)
+
+
+@router.get("/illimitata/{attempt_id}", response_model=None)
+def unlimited_page(request: Request, session: SessionDep, attempt_id: int) -> Response:
+    attempt = _attempt(session, attempt_id, Mode.UNLIMITED)
+    if attempt.finished_at is not None:
+        return RedirectResponse(f"/illimitata/{attempt_id}/riepilogo", status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "unlimited.html",
+        {
+            "attempt": attempt,
+            "card": _unlimited_card(session, attempt.answers[-1]),
+            "stats": store.unlimited_stats(attempt),
+        },
+    )
+
+
+@router.post("/illimitata/{attempt_id}/risposte")
+def unlimited_answer(
+    session: SessionDep, rng: RngDep, now: NowDep, attempt_id: int, answer: AnswerIn
+) -> UnlimitedNext:
+    attempt = _attempt(session, attempt_id, Mode.UNLIMITED)
+    try:
+        upcoming = store.answer_unlimited(session, attempt, answer.position, answer.given, rng, now)
+    except LookupError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+    except ValueError as err:
+        raise HTTPException(status_code=409, detail=str(err)) from err
+    return _unlimited_next(session, attempt, upcoming)
+
+
+@router.post("/illimitata/{attempt_id}/rivela")
+def unlimited_reveal(
+    session: SessionDep, rng: RngDep, now: NowDep, attempt_id: int, reveal: RevealIn
+) -> UnlimitedNext:
+    attempt = _attempt(session, attempt_id, Mode.UNLIMITED)
+    try:
+        upcoming = store.reveal_unlimited(session, attempt, reveal.position, rng, now)
+    except LookupError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+    except ValueError as err:
+        raise HTTPException(status_code=409, detail=str(err)) from err
+    return _unlimited_next(session, attempt, upcoming)
+
+
+@router.post("/illimitata/{attempt_id}/fine")
+def unlimited_finish(session: SessionDep, now: NowDep, attempt_id: int) -> RedirectResponse:
+    if store.finish_unlimited(session, _attempt(session, attempt_id, Mode.UNLIMITED), now):
+        return RedirectResponse(f"/illimitata/{attempt_id}/riepilogo", status_code=303)
+    return RedirectResponse("/illimitata", status_code=303)
+
+
+@router.get("/illimitata/{attempt_id}/riepilogo", response_model=None)
+def unlimited_summary(request: Request, session: SessionDep, attempt_id: int) -> Response:
+    attempt = _attempt(session, attempt_id, Mode.UNLIMITED)
+    if attempt.finished_at is None:
+        return RedirectResponse(f"/illimitata/{attempt_id}", status_code=303)
     return _review(request, attempt)
 
 
@@ -308,6 +414,22 @@ def questions_chapter(
             "selected_levels": shown,
         },
     )
+
+
+@router.get("/guide", response_class=HTMLResponse)
+def guides_index(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "guides_index.html", {"guides": guides.guide_links(guides.GUIDES_DIR)}
+    )
+
+
+@router.get("/guide/{slug}", response_class=HTMLResponse)
+def guide_page(request: Request, slug: str) -> HTMLResponse:
+    try:
+        guide = guides.load_guide(guides.GUIDES_DIR, slug)
+    except LookupError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+    return templates.TemplateResponse(request, "guide.html", {"guide": guide})
 
 
 @router.get("/storico", response_class=HTMLResponse)
@@ -405,6 +527,48 @@ def _practice_setup(
     )
 
 
+def _unlimited_setup(
+    request: Request, session: Session, settings: UnlimitedSettings, error: str | None
+) -> HTMLResponse:
+    context: dict[str, Any] = {
+        "chapters": store.chapters(session),
+        "selected_levels": settings.levels,
+        "selected_chapters": settings.chapters,
+        "unseen_only": settings.unseen_only,
+        "wrong_only": settings.wrong_only,
+        "show_level": settings.show_level,
+        "error": error,
+    }
+    return templates.TemplateResponse(
+        request, "unlimited_setup.html", context, status_code=400 if error else 200
+    )
+
+
+def _draw_error(levels: list[Level], chapters: list[int]) -> str | None:
+    if not levels:
+        return "Seleziona almeno un livello"
+    if not chapters:
+        return "Seleziona almeno un capitolo"
+    return None
+
+
+def _unlimited_next(session: Session, attempt: Attempt, upcoming: AttemptAnswer) -> UnlimitedNext:
+    session.refresh(attempt)
+    stats = store.unlimited_stats(attempt)
+    return UnlimitedNext(
+        card=_unlimited_card(session, upcoming),
+        stats=stats,
+        stats_html=templates.get_template("unlimited_stats.html").render(stats=stats),
+    )
+
+
+def _unlimited_card(session: Session, item: AttemptAnswer) -> str:
+    run = store.unlimited_run(session, item.attempt)
+    return templates.get_template("unlimited_card.html").render(
+        item=item, show_level=run.show_level, reask=store.is_reask(session, item)
+    )
+
+
 def _saved[S: BaseModel](request: Request, cookie: str, model: type[S], default: S) -> S:
     raw = request.cookies.get(cookie)
     if raw is None:
@@ -437,6 +601,7 @@ def _review(request: Request, attempt: Attempt) -> HTMLResponse:
             "revealed": sum(a.revealed for a in answers),
             "unanswered": sum(not a.is_done for a in answers),
             "passed": is_passed(correct),
+            "stats": store.unlimited_stats(attempt) if attempt.mode == Mode.UNLIMITED else None,
         },
     )
 
@@ -458,9 +623,13 @@ def _progress_point(attempt: Attempt) -> dict[str, Any]:
 
 
 def _review_url(attempt: Attempt) -> str:
-    if attempt.mode == Mode.EXAM:
-        return f"/esame/{attempt.id}/risultato"
-    return f"/esercitazione/{attempt.id}/riepilogo"
+    match attempt.mode:
+        case Mode.EXAM:
+            return f"/esame/{attempt.id}/risultato"
+        case Mode.PRACTICE:
+            return f"/esercitazione/{attempt.id}/riepilogo"
+        case Mode.UNLIMITED:
+            return f"/illimitata/{attempt.id}/riepilogo"
 
 
 def _attempt(session: Session, attempt_id: int, mode: Mode) -> Attempt:

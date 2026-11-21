@@ -20,7 +20,7 @@ QUESTION_ID = 40010
 def test_home_links_to_every_section(client: TestClient) -> None:
     page = client.get("/").text
 
-    for path in ("/esame", "/esercitazione", "/domande", "/storico"):
+    for path in ("/esame", "/esercitazione", "/illimitata", "/domande", "/guide", "/storico"):
         assert f'href="{path}"' in page
 
 
@@ -267,7 +267,9 @@ def test_answer_for_unknown_position_is_404(client: TestClient) -> None:
     assert response.status_code == 404
 
 
-@pytest.mark.parametrize("path", ["/esame/999", "/esercitazione/999", "/domande/999"])
+@pytest.mark.parametrize(
+    "path", ["/esame/999", "/esercitazione/999", "/illimitata/999", "/domande/999"]
+)
 def test_unknown_ids_are_404(client: TestClient, path: str) -> None:
     assert client.get(path).status_code == 404
 
@@ -733,6 +735,24 @@ def _practice_form(levels: list[str], chapters: list[int], count: int) -> dict[s
     return {"level": levels, "chapter": [str(c) for c in chapters], "count": str(count)}
 
 
+def test_guides_index_links_to_every_guide(client: TestClient) -> None:
+    page = client.get("/guide").text
+
+    for slug in ("distanza-di-sicurezza", "limiti-di-velocita", "patenti", "sanzioni-patente"):
+        assert f'href="/guide/{slug}"' in page
+
+
+def test_guide_page_renders_the_markdown(client: TestClient) -> None:
+    page = client.get("/guide/patenti").text
+
+    assert "<h1>Patenti A e B: veicoli ed età</h1>" in page
+    assert 'href="/guide/limiti-di-velocita"' in page
+
+
+def test_unknown_guide_is_not_found(client: TestClient) -> None:
+    assert client.get("/guide/nessuna").status_code == 404
+
+
 def _complete_practice(client: TestClient, app: FastAPI) -> int:
     attempt_id = _start_practice(client, ALL_LEVELS, [1], 3)
     for item in _attempt(app, attempt_id, Mode.PRACTICE).answers:
@@ -773,3 +793,190 @@ def _question(app: FastAPI, question_id: int) -> Question:
         question = session.get(Question, question_id)
         assert question is not None
         return question
+
+
+def test_unlimited_setup_shows_the_level_by_default(client: TestClient) -> None:
+    page = client.get("/illimitata").text
+
+    assert 'name="show_level" value="true" checked' in page
+    assert "4/4" in page
+
+
+@pytest.mark.parametrize(
+    ("form", "message"),
+    [
+        ({"chapter": ["1"]}, "Seleziona almeno un livello"),
+        ({"level": ALL_LEVELS}, "Seleziona almeno un capitolo"),
+        ({"level": ["hard"], "chapter": ["2"]}, "Nessuna domanda corrisponde ai filtri scelti"),
+    ],
+)
+def test_unlimited_setup_reports_errors(
+    client: TestClient, form: dict[str, Any], message: str
+) -> None:
+    response = client.post("/illimitata", data=form, follow_redirects=False)
+
+    assert response.status_code == 400
+    assert message in response.text
+
+
+def test_unlimited_setup_remembers_the_last_started_settings(client: TestClient) -> None:
+    _start_unlimited(client, {"level": ["easy"], "chapter": ["2"]})
+
+    page = client.get("/illimitata").text
+
+    assert 'name="level" value="easy" checked' in page
+    assert "1/4" in page
+    assert 'name="show_level" value="true" >' in page
+
+
+def test_unlimited_page_shows_one_question_and_its_level(client: TestClient) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form() | {"show_level": "true"})
+
+    page = client.get(f"/illimitata/{attempt_id}").text
+
+    assert page.count('class="question-card') == 1
+    assert page.count("data-answer=") == 1
+    assert page.count('class="level-control"') == 1
+    assert "Domanda 1" in page
+    assert "Ultime 30" in page
+
+
+def test_unlimited_page_can_hide_the_level(client: TestClient) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form())
+
+    page = client.get(f"/illimitata/{attempt_id}").text
+
+    assert 'class="level-control"' not in page
+
+
+def test_unlimited_answer_returns_the_next_card_and_stats(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form())
+    first = _attempt(app, attempt_id, Mode.UNLIMITED).answers[0]
+
+    body = _answer_unlimited(client, attempt_id, 1, first.question.answer)
+
+    assert 'data-position="2"' in body["card"]
+    assert body["stats"] == {
+        "answered": 1,
+        "correct": 1,
+        "best_streak": 1,
+        "current_streak": 1,
+        "recent": [True],
+    }
+    assert "100%" in body["stats_html"]
+    assert body["stats_html"].count('class="hit"') == 1
+    assert body["stats_html"].count('class="empty"') == 29
+
+
+def test_unlimited_stats_strip_marks_hits_and_misses(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form())
+    first = _attempt(app, attempt_id, Mode.UNLIMITED).answers[0]
+    _answer_unlimited(client, attempt_id, 1, first.question.answer)
+
+    _answer_unlimited(client, attempt_id, 2, True)
+    body = client.post(f"/illimitata/{attempt_id}/rivela", json={"position": 3}).json()
+
+    html = body["stats_html"]
+    assert 'title="Domanda 1: corretta"' in html
+    assert 'title="Domanda 3: sbagliata"' in html
+    assert html.count('class="empty"') == 27
+    assert "Serie attuale: 0" in html
+
+
+def test_unlimited_reveal_returns_the_next_card(client: TestClient) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form())
+
+    response = client.post(f"/illimitata/{attempt_id}/rivela", json={"position": 1})
+
+    assert response.status_code == 200
+    assert response.json()["stats"]["correct"] == 0
+    assert 'data-position="2"' in response.json()["card"]
+
+
+@pytest.mark.parametrize(("position", "status"), [(1, 409), (9, 404)])
+def test_unlimited_rejects_done_or_unknown_positions(
+    client: TestClient, position: int, status: int
+) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form())
+    _answer_unlimited(client, attempt_id, 1, True)
+
+    answered = client.post(
+        f"/illimitata/{attempt_id}/risposte", json={"position": position, "given": True}
+    )
+    revealed = client.post(f"/illimitata/{attempt_id}/rivela", json={"position": position})
+
+    assert (answered.status_code, revealed.status_code) == (status, status)
+
+
+def test_unlimited_wrong_answer_is_flagged_when_it_comes_back(
+    client: TestClient, app: FastAPI
+) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form())
+    attempt = _attempt(app, attempt_id, Mode.UNLIMITED)
+    body = _answer_unlimited(client, attempt_id, 1, not attempt.answers[0].question.answer)
+    position = 2
+    while "Da ripassare" not in body["card"]:
+        body = _answer_unlimited(client, attempt_id, position, True)
+        position += 1
+
+    assert f"Quesito {attempt.answers[0].question.topic_id}" in body["card"]
+
+
+def test_unlimited_summary_and_history(client: TestClient, app: FastAPI) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form())
+    first = _attempt(app, attempt_id, Mode.UNLIMITED).answers[0]
+    _answer_unlimited(client, attempt_id, 1, first.question.answer)
+    _answer_unlimited(client, attempt_id, 2, True)
+    client.post(f"/illimitata/{attempt_id}/rivela", json={"position": 3})
+
+    summary = client.post(f"/illimitata/{attempt_id}/fine")
+    history = client.get("/storico").text
+
+    assert summary.url.path == f"/illimitata/{attempt_id}/riepilogo"
+    assert "Esercitazione illimitata terminata" in summary.text
+    assert "1 rivelate" in summary.text
+    assert "Serie migliore" in summary.text
+    assert f"/illimitata/{attempt_id}/riepilogo" in history
+    assert "key-unlimited" in history
+
+
+def test_unlimited_finished_without_answers_is_discarded(client: TestClient) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form())
+
+    response = client.post(f"/illimitata/{attempt_id}/fine", follow_redirects=False)
+
+    assert response.headers["location"] == "/illimitata"
+    assert client.get(f"/illimitata/{attempt_id}").status_code == 404
+
+
+def test_unlimited_routes_redirect_by_state(client: TestClient) -> None:
+    attempt_id = _start_unlimited(client, _unlimited_form())
+
+    early = client.get(f"/illimitata/{attempt_id}/riepilogo", follow_redirects=False)
+    _answer_unlimited(client, attempt_id, 1, True)
+    client.post(f"/illimitata/{attempt_id}/fine")
+    late = client.get(f"/illimitata/{attempt_id}", follow_redirects=False)
+
+    assert early.headers["location"] == f"/illimitata/{attempt_id}"
+    assert late.headers["location"] == f"/illimitata/{attempt_id}/riepilogo"
+
+
+def _start_unlimited(client: TestClient, form: dict[str, Any]) -> int:
+    response = client.post("/illimitata", data=form, follow_redirects=False)
+    assert response.status_code == 303
+    return int(response.headers["location"].rsplit("/", 1)[1])
+
+
+def _unlimited_form() -> dict[str, Any]:
+    return {"level": ALL_LEVELS, "chapter": ["1"]}
+
+
+def _answer_unlimited(
+    client: TestClient, attempt_id: int, position: int, given: bool
+) -> dict[str, Any]:
+    response = client.post(
+        f"/illimitata/{attempt_id}/risposte", json={"position": position, "given": given}
+    )
+    assert response.status_code == 200
+    body: dict[str, Any] = response.json()
+    return body

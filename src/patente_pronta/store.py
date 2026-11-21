@@ -16,9 +16,22 @@ from patente_pronta.models import (
     Pool,
     Question,
     QuestionFilter,
+    Reask,
     Topic,
+    UnlimitedRun,
 )
-from patente_pronta.quiz import EXAM_DURATION, Candidate, draw_exam, draw_practice
+from patente_pronta.quiz import (
+    EXAM_DURATION,
+    Candidate,
+    RunStats,
+    draw_exam,
+    draw_from_pool,
+    draw_practice,
+    next_reask_step,
+    reask_position,
+    run_stats,
+    shuffle_pool,
+)
 
 
 def start_exam(
@@ -44,15 +57,88 @@ def start_practice(
     rng: random.Random,
     now: datetime,
 ) -> Attempt:
-    rows = session.exec(
-        select(Question.id)
-        .join(Topic)
-        .where(*_drawable(levels, pool), col(Topic.chapter_id).in_(chapter_ids))
-    ).all()
-    question_ids = draw_practice([qid for qid in rows if qid], count, rng)
+    question_ids = draw_practice(_drawable_ids(session, levels, chapter_ids, pool), count, rng)
     return _create_attempt(
         session, Mode.PRACTICE, levels, instant_feedback, question_ids, now, None
     )
+
+
+def start_unlimited(
+    session: Session,
+    levels: Sequence[Level],
+    chapter_ids: Sequence[int],
+    pool: Pool,
+    show_level: bool,
+    rng: random.Random,
+    now: datetime,
+) -> Attempt:
+    order = shuffle_pool(_drawable_ids(session, levels, chapter_ids, pool), rng)
+    attempt = _create_attempt(session, Mode.UNLIMITED, levels, True, order[:1], now, None)
+    run = UnlimitedRun(attempt_id=_id(attempt), show_level=show_level, order=order, cursor=1)
+    session.add(run)
+    session.commit()
+    session.refresh(attempt)
+    return attempt
+
+
+def answer_unlimited(
+    session: Session,
+    attempt: Attempt,
+    position: int,
+    given: bool,
+    rng: random.Random,
+    now: datetime,
+) -> AttemptAnswer:
+    answer = _current_unlimited(attempt, position, now)
+    answer.given = given
+    return _advance(session, attempt, answer, rng)
+
+
+def reveal_unlimited(
+    session: Session, attempt: Attempt, position: int, rng: random.Random, now: datetime
+) -> AttemptAnswer:
+    answer = _current_unlimited(attempt, position, now)
+    answer.revealed = True
+    return _advance(session, attempt, answer, rng)
+
+
+def finish_unlimited(session: Session, attempt: Attempt, now: datetime) -> bool:
+    attempt_id = _id(attempt)
+    for reask in _reasks(session, attempt_id):
+        session.delete(reask)
+    for answer in attempt.answers:
+        if not answer.is_done:
+            session.delete(answer)
+    session.commit()
+    session.refresh(attempt)
+    if attempt.answers:
+        finish(session, attempt, now)
+        return True
+    session.delete(unlimited_run(session, attempt))
+    session.delete(attempt)
+    session.commit()
+    return False
+
+
+def unlimited_run(session: Session, attempt: Attempt) -> UnlimitedRun:
+    run = session.get(UnlimitedRun, attempt.id)
+    if run is None:
+        msg = f"Attempt {attempt.id} has no unlimited run"
+        raise LookupError(msg)
+    return run
+
+
+def unlimited_stats(attempt: Attempt) -> RunStats:
+    return run_stats([answer.is_correct for answer in attempt.answers if answer.is_done])
+
+
+def is_reask(session: Session, answer: AttemptAnswer) -> bool:
+    found = session.exec(
+        select(Reask.id).where(
+            Reask.attempt_id == answer.attempt_id, Reask.asked_at == answer.position
+        )
+    ).first()
+    return found is not None
 
 
 def get_attempt(session: Session, attempt_id: int, mode: Mode) -> Attempt:
@@ -195,6 +281,17 @@ def seen_totals(session: Session) -> dict[Level, int]:
     return _counts_by_level(session, [col(Question.seen).is_(True)])
 
 
+def _drawable_ids(
+    session: Session, levels: Sequence[Level], chapter_ids: Sequence[int], pool: Pool
+) -> list[int]:
+    rows = session.exec(
+        select(Question.id)
+        .join(Topic)
+        .where(*_drawable(levels, pool), col(Topic.chapter_id).in_(chapter_ids))
+    ).all()
+    return [qid for qid in rows if qid]
+
+
 def _drawable(levels: Sequence[Level], pool: Pool) -> list[ColumnElement[bool]]:
     return [col(Question.level).in_(levels), *_in_pool(pool)]
 
@@ -292,6 +389,93 @@ def _saved(session: Session, answer: AttemptAnswer) -> AttemptAnswer:
     return answer
 
 
+def _current_unlimited(attempt: Attempt, position: int, now: datetime) -> AttemptAnswer:
+    answer = _open_answer(attempt, position, now)
+    if answer.is_done:
+        msg = f"Question {position} of attempt {attempt.id} is already done"
+        raise ValueError(msg)
+    return answer
+
+
+def _advance(
+    session: Session, attempt: Attempt, answered: AttemptAnswer, rng: random.Random
+) -> AttemptAnswer:
+    attempt_id = _id(attempt)
+    answered.question.seen = True
+    run = unlimited_run(session, attempt)
+    pending = _reschedule(session, attempt_id, answered, rng)
+    upcoming = AttemptAnswer(
+        attempt_id=attempt_id,
+        position=answered.position + 1,
+        question_id=_next_question(run, pending, answered, rng),
+        given=None,
+        revealed=False,
+        level=None,
+    )
+    session.add_all([answered, answered.question, run, upcoming])
+    session.commit()
+    session.refresh(upcoming)
+    return upcoming
+
+
+def _reschedule(
+    session: Session, attempt_id: int, answered: AttemptAnswer, rng: random.Random
+) -> list[Reask]:
+    reasks = _reasks(session, attempt_id)
+    asked = next((reask for reask in reasks if reask.asked_at == answered.position), None)
+    step = next_reask_step(answered.is_correct, asked.step if asked else None)
+    pending: list[Reask] = []
+    for reask in reasks:
+        if reask.asked_at is None and reask.question_id != answered.question_id:
+            pending.append(reask)
+        else:
+            session.delete(reask)
+    if step is not None:
+        reask = Reask(
+            attempt_id=attempt_id,
+            question_id=answered.question_id,
+            step=step,
+            due=reask_position(answered.position, step, rng),
+            asked_at=None,
+        )
+        session.add(reask)
+        pending.append(reask)
+    return pending
+
+
+def _next_question(
+    run: UnlimitedRun, pending: Sequence[Reask], answered: AttemptAnswer, rng: random.Random
+) -> int:
+    position = answered.position + 1
+    reask = min((r for r in pending if r.due <= position), key=_due, default=None)
+    if reask is None:
+        avoid = {r.question_id for r in pending} | {answered.question_id}
+        draw = draw_from_pool(run.order, run.cursor, avoid, rng)
+        if draw is not None:
+            run.order, run.cursor = draw.order, draw.cursor
+            return draw.question_id
+        reask = min(pending, key=_due, default=None)
+    if reask is None:
+        return answered.question_id
+    reask.asked_at = position
+    return reask.question_id
+
+
+def _due(reask: Reask) -> int:
+    return reask.due
+
+
+def _reasks(session: Session, attempt_id: int) -> Sequence[Reask]:
+    return session.exec(select(Reask).where(Reask.attempt_id == attempt_id)).all()
+
+
+def _id(attempt: Attempt) -> int:
+    if attempt.id is None:
+        msg = "Attempt has no id after flush"
+        raise RuntimeError(msg)
+    return attempt.id
+
+
 def _create_attempt(
     session: Session,
     mode: Mode,
@@ -312,12 +496,10 @@ def _create_attempt(
     )
     session.add(attempt)
     session.flush()
-    if attempt.id is None:
-        msg = "Attempt has no id after flush"
-        raise RuntimeError(msg)
+    attempt_id = _id(attempt)
     session.add_all(
         AttemptAnswer(
-            attempt_id=attempt.id,
+            attempt_id=attempt_id,
             position=position,
             question_id=qid,
             given=None,

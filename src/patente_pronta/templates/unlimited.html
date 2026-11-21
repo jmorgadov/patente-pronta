@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "macros.html" import run_stats %}
+{% block title %}Illimitata &middot; Patente Pronta{% endblock %}
+{% block scripts %}<script src="/static/unlimited.js" defer></script>{% endblock %}
+{% block content %}
+<div class="quiz" data-unlimited
+  data-answer-url="/illimitata/{{ attempt.id }}/risposte"
+  data-reveal-url="/illimitata/{{ attempt.id }}/rivela">
+  <div class="quiz-top quiz-top-unlimited">
+    <span class="progress-label">Esercitazione illimitata</span>
+    <form method="post" action="/illimitata/{{ attempt.id }}/fine" data-submit-form>
+      <button type="submit" class="btn btn-small">Termina</button>
+    </form>
+  </div>
+  <div data-card-slot>{{ card | safe }}</div>
+  {{ run_stats(stats) }}
+</div>
+{% endblock %}
