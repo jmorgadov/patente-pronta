@@ -579,7 +579,7 @@ wheels = [
 
 [[package]]
 name = "patente-pronta"
-version = "0.1.4b0"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
